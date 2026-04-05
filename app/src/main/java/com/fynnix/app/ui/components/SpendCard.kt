@@ -1,0 +1,145 @@
+package com.fynnix.app.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.fynnix.app.ui.theme.Primary
+import com.fynnix.app.ui.utils.ColorUtils
+import java.util.Locale
+
+data class SpendCardData(
+    val label: String,
+    val debitAmount: Double,
+    val creditAmount: Double,
+    val incomeAmount: Double? = null,
+    val lastSynced: String
+)
+
+@Composable
+fun SpendCardPager(
+    cards: List<SpendCardData>
+) {
+    val pagerState = rememberPagerState(pageCount = { cards.size })
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            pageSpacing = 12.dp
+        ) { page ->
+            SpendCard(data = cards[page])
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Pager Indicator
+        Row(
+            Modifier
+                .height(8.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            repeat(cards.size) { iteration ->
+                val color = if (pagerState.currentPage == iteration) Primary else Color.Gray.copy(alpha = 0.3f)
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .size(8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SpendCard(data: SpendCardData) {
+    val income = data.incomeAmount ?: 1.0 // Prevent division by zero
+    val percentage = (data.debitAmount / income).toFloat().coerceIn(0f, 1f)
+    val progressColor = ColorUtils.getProgressColor(percentage)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Text(
+                text = data.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                letterSpacing = 1.sp
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "₹${formatCurrency(data.debitAmount)}",
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Primary,
+                    fontSize = 36.sp
+                )
+            )
+
+            if (data.creditAmount > 0) {
+                Text(
+                    text = "+ ₹${formatCurrency(data.creditAmount)} incoming",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF22C55E) // Success Green
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            if (data.incomeAmount != null) {
+                FynnixProgressBar(
+                    progress = percentage,
+                    color = progressColor
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "${(percentage * 100).toInt()}% of income spent",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Last synced: ${data.lastSynced}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+private fun formatCurrency(amount: Double): String {
+    return String.format(Locale.US, "%,.0f", amount)
+}
