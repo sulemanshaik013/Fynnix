@@ -1,6 +1,8 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+//    alias(libs.plugins.android.application)
+//    alias(libs.plugins.kotlin.android)
+    id("com.android.application")
+    kotlin("android")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -12,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.fynnix.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -22,11 +24,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
     compileOptions {
@@ -39,6 +45,16 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Room schema export — commit the generated JSON files so migrations can be validated in CI.
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+        arg("room.incremental", "true")
+    }
+}
+
+hilt {
+    enableAggregatingTask = false
 }
 
 dependencies {
@@ -64,6 +80,24 @@ dependencies {
 
     // Navigation
     implementation(libs.androidx.navigation.compose)
+
+    // SQLCipher
+    implementation(libs.sqlcipher)
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+
+    // Biometric
+    implementation("androidx.biometric:biometric:1.1.0")
+
+    // EncryptedSharedPreferences for storing the SQLCipher passphrase
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // sqlite-android required by net.zetetic SQLCipher 4.x
+    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
+//    kapt ("androidx.hilt:hilt-compiler:1.0.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

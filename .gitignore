@@ -356,4 +356,5 @@ lint/tmp/
 app/release/output.json
 .idea/codeStyles/
 
+**/docs/**
 # End of https://www.gitignore.io/api/java,linux,macos,windows,android,intellij,androidstudio
