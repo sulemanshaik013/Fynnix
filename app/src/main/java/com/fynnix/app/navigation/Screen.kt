@@ -32,6 +32,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Help : Screen("help", "Help", Icons.Default.Settings)
     object ReportIssue : Screen("report_issue", "Report Issue", Icons.Default.Settings)
     object AccountManagement : Screen("account_management", "Manage Accounts", Icons.Default.Settings)
+    object FailedSmsReview : Screen("failed_sms_review", "Failed SMS", Icons.Default.Settings)
 }
 
 val bottomNavItems = listOf(

@@ -51,6 +51,7 @@ import com.fynnix.app.features.security.ui.AppLockScreen
 import com.fynnix.app.features.security.ui.SecuritySettingsScreen
 import com.fynnix.app.features.settings.ui.AppSettingsScreen
 import com.fynnix.app.features.settings.ui.DataManagementScreen
+import com.fynnix.app.features.settings.ui.FailedSmsReviewScreen
 import com.fynnix.app.features.settings.ui.HelpScreen
 import com.fynnix.app.features.settings.ui.PrivacyDashboardScreen
 import com.fynnix.app.features.settings.ui.ProfileDetailsScreen
@@ -299,7 +300,12 @@ fun MainScreen(
                 DataManagementScreen(
                     onBack = { navController.popBackStack() },
                     onManageCategories = { navController.navigate(Screen.CategoriesAndBudgets.route) },
+                    onNavigateToFailedSms = { navController.navigate(Screen.FailedSmsReview.route) },
                 )
+            }
+
+            composable(Screen.FailedSmsReview.route) {
+                FailedSmsReviewScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Screen.AppSettings.route) {

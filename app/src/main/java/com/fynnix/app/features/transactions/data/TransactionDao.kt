@@ -104,6 +104,9 @@ interface TransactionDao {
     @Query("UPDATE transactions SET deletedAt = NULL WHERE id = :id")
     suspend fun restore(id: String)
 
+    @Query("UPDATE transactions SET isReviewed = 1 WHERE id = :id")
+    suspend fun markReviewed(id: String)
+
     // ---- Aggregates ----
 
     @Query("SELECT COUNT(*) FROM transactions WHERE deletedAt IS NULL")

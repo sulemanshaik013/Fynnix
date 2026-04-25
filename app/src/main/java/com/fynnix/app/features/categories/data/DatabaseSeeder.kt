@@ -1,8 +1,11 @@
 package com.fynnix.app.features.categories.data
 
 import android.util.Log
+import com.fynnix.app.core.utils.RuleCondition
+import com.fynnix.app.core.utils.RuleField
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.data.BudgetEntity
+import com.fynnix.app.features.categories.domain.ChainedCategoryClassifier
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -10,6 +13,7 @@ import javax.inject.Singleton
 class DatabaseSeeder @Inject constructor(
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
+    private val ruleDao: AutoCategoriseRuleDao,
 ) {
     suspend fun seedIfEmpty() {
         if (categoryDao.getCount() == 0) {
@@ -27,20 +31,53 @@ class DatabaseSeeder @Inject constructor(
             )
             categoryDao.insertAll(categories)
 
-            // Seed default monthly budgets. Income and Uncategorized intentionally
-            // have no budget limit — they are not spending categories.
             val defaultBudgets = mapOf(
-                1L to 8_000.0,  // Food
-                2L to 4_000.0,  // Transport
-                3L to 8_000.0,  // Shopping
-                4L to 3_000.0,  // Bills
-                5L to 2_000.0,  // Entertainment
-                6L to 2_000.0,  // Health
+                1L to 8_000.0,
+                2L to 4_000.0,
+                3L to 8_000.0,
+                4L to 3_000.0,
+                5L to 2_000.0,
+                6L to 2_000.0,
             )
             defaultBudgets.forEach { (categoryId, limit) ->
                 if (budgetDao.getBudgetByCategoryId(categoryId) == null) {
                     budgetDao.insertBudget(BudgetEntity(categoryId = categoryId, limitAmount = limit))
                 }
+            }
+        }
+
+        if (ruleDao.getCount() == 0) {
+            Log.d("DatabaseSeeder", "Seeding default auto-categorise rules...")
+            seedDefaultRules()
+        }
+    }
+
+    private suspend fun seedDefaultRules() {
+        // (categoryId, keywords, groupPriority base)
+        data class RuleGroup(val categoryId: Long, val keywords: List<String>, val base: Int)
+
+        val groups = listOf(
+            RuleGroup(1L, ChainedCategoryClassifier.FOOD,          100),
+            RuleGroup(2L, ChainedCategoryClassifier.TRANSPORT,     200),
+            RuleGroup(3L, ChainedCategoryClassifier.SHOPPING,      300),
+            RuleGroup(4L, ChainedCategoryClassifier.BILLS,         400),
+            RuleGroup(5L, ChainedCategoryClassifier.ENTERTAINMENT, 500),
+            RuleGroup(6L, ChainedCategoryClassifier.HEALTH,        600),
+            RuleGroup(7L, ChainedCategoryClassifier.INCOME,        700),
+        )
+
+        groups.forEach { group ->
+            group.keywords.forEachIndexed { idx, keyword ->
+                ruleDao.insertRule(
+                    AutoCategoriseRule(
+                        ruleName   = keyword,
+                        field      = RuleField.MERCHANT,
+                        condition  = RuleCondition.CONTAINS,
+                        value      = keyword,
+                        categoryId = group.categoryId,
+                        priority   = group.base + (idx * 10),
+                    )
+                )
             }
         }
     }

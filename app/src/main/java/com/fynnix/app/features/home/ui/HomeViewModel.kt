@@ -84,6 +84,7 @@ class HomeViewModel @Inject constructor(
                     amount        = tx.amount,
                     dateTime      = tx.dateTime,
                     type          = tx.type,
+                    categoryId    = tx.categoryId,
                     isReviewed    = tx.isReviewed,
                     source        = tx.source.name,
                     rawMessage    = tx.rawMessage,

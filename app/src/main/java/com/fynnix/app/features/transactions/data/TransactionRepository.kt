@@ -46,6 +46,12 @@ class TransactionRepository @Inject constructor(
     suspend fun update(transaction: Transaction) =
         transactionDao.update(transaction.toEntity())
 
+    suspend fun getById(id: String): Transaction? = transactionDao.getById(id)?.toDomain()
+
+    suspend fun softDelete(id: String) = transactionDao.softDelete(id, System.currentTimeMillis())
+
+    suspend fun markReviewed(id: String) = transactionDao.markReviewed(id)
+
     suspend fun getCount(): Long = transactionDao.getCount()
 
     suspend fun clearAll() = transactionDao.clearAll()

@@ -8,7 +8,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
+import com.fynnix.app.core.utils.TransactionSource
 import com.fynnix.app.core.utils.TransactionType
+import com.fynnix.app.features.transactions.data.Transaction
+import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +19,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 enum class TransactionFilter(val label: String) {
@@ -29,6 +34,7 @@ enum class TransactionFilter(val label: String) {
 class TransactionsViewModel @Inject constructor(
     application: Application,
     private val transactionRepository: TransactionRepository,
+    private val transactionDao: TransactionDao,
     private val userPreferences: UserPreferences,
 ) : AndroidViewModel(application) {
 
@@ -68,17 +74,18 @@ class TransactionsViewModel @Inject constructor(
                     val cat = meta[tx.categoryId]
                         ?: Triple("Uncategorized", Icons.Default.SwapHoriz, Color.Gray)
                     TransactionUiModel(
-                        id = tx.id,
-                        merchantName = tx.merchant,
-                        categoryName = cat.first,
-                        categoryIcon = cat.second,
+                        id            = tx.id,
+                        merchantName  = tx.merchant,
+                        categoryName  = cat.first,
+                        categoryIcon  = cat.second,
                         categoryColor = cat.third,
-                        amount = tx.amount,
-                        dateTime = tx.dateTime,
-                        type = tx.type,
-                        isReviewed = tx.isReviewed,
-                        source = tx.source.name,
-                        rawMessage = tx.rawMessage,
+                        amount        = tx.amount,
+                        dateTime      = tx.dateTime,
+                        type          = tx.type,
+                        categoryId    = tx.categoryId,
+                        isReviewed    = tx.isReviewed,
+                        source        = tx.source.name,
+                        rawMessage    = tx.rawMessage,
                         messageSource = tx.messageSource,
                     )
                 }
@@ -86,10 +93,86 @@ class TransactionsViewModel @Inject constructor(
         }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val categoryItems: StateFlow<List<CategoryPickerItem>> =
+        combine(
+            transactionRepository.categories,
+            transactionRepository.categoryMetaFlow,
+        ) { cats, meta ->
+            cats.filter { it.id != 0L }.mapNotNull { cat ->
+                val (name, icon, color) = meta[cat.id] ?: return@mapNotNull null
+                CategoryPickerItem(cat.id, name, icon, color)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun setQuery(q: String) { _query.value = q }
     fun setFilter(f: TransactionFilter) { _filter.value = f }
 
     fun manualSync() {
         SyncWorker.scheduleManualSync(getApplication(), userPreferences.getSyncDays())
+    }
+
+    fun saveManualTransaction(
+        amount: Double,
+        merchant: String,
+        categoryId: Long,
+        dateTime: Long,
+        type: TransactionType,
+        note: String?,
+    ) {
+        viewModelScope.launch {
+            transactionRepository.insertTransaction(
+                Transaction(
+                    id             = UUID.randomUUID().toString(),
+                    amount         = amount,
+                    currency       = "INR",
+                    merchant       = merchant,
+                    categoryId     = categoryId,
+                    accountId      = null,
+                    source         = TransactionSource.MANUAL,
+                    dateTime       = dateTime,
+                    type           = type,
+                    isReviewed     = true,
+                    isSplit        = false,
+                    splitAmount    = null,
+                    isReimbursement = false,
+                    note           = note?.takeIf { it.isNotBlank() },
+                    rawMessage     = "",
+                    messageSource  = "",
+                )
+            )
+        }
+    }
+
+    fun updateTransaction(
+        id: String,
+        amount: Double,
+        merchant: String,
+        categoryId: Long,
+        dateTime: Long,
+        type: TransactionType,
+        note: String?,
+    ) {
+        viewModelScope.launch {
+            val existing = transactionDao.getById(id) ?: return@launch
+            transactionDao.update(
+                existing.copy(
+                    amount      = amount,
+                    merchant    = merchant,
+                    categoryId  = categoryId,
+                    dateTime    = dateTime,
+                    type        = type,
+                    note        = note?.takeIf { it.isNotBlank() },
+                    isUserEdited = true,
+                )
+            )
+        }
+    }
+
+    fun deleteTransaction(id: String) {
+        viewModelScope.launch { transactionRepository.softDelete(id) }
+    }
+
+    fun markReviewed(id: String) {
+        viewModelScope.launch { transactionRepository.markReviewed(id) }
     }
 }

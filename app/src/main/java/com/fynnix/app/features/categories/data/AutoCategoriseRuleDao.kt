@@ -13,6 +13,12 @@ interface AutoCategoriseRuleDao {
     @Query("SELECT * FROM auto_categorise_rules ORDER BY priority ASC")
     fun getAllRules(): Flow<List<AutoCategoriseRule>>
 
+    @Query("SELECT * FROM auto_categorise_rules ORDER BY priority ASC")
+    suspend fun getAllList(): List<AutoCategoriseRule>
+
+    @Query("SELECT COUNT(*) FROM auto_categorise_rules")
+    suspend fun getCount(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRule(rule: AutoCategoriseRule): Long
 

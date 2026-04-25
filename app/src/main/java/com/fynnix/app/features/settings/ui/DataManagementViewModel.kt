@@ -7,10 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.backup.CsvIo
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
+import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,7 +25,11 @@ class DataManagementViewModel @Inject constructor(
     @ApplicationContext private val app: Context,
     private val prefs: UserPreferences,
     private val csv: CsvIo,
+    private val failedTransactionDao: FailedTransactionDao,
 ) : ViewModel() {
+
+    val failedSmsCount = failedTransactionDao.countFlow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val periodOptions = listOf(
         ScanPeriodOption("1 Month", 30),

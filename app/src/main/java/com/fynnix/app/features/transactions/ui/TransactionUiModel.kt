@@ -13,9 +13,17 @@ data class TransactionUiModel(
     val amount: Double,
     val dateTime: Long,
     val type: TransactionType,
+    val categoryId: Long = 0L,
     val isReviewed: Boolean = true,
     val source: String = "Manual",
     val rawMessage: String = "",
     val messageSource: String = "",
-    val isP2P: Boolean = false
+    val isP2P: Boolean = false,
+)
+
+data class CategoryPickerItem(
+    val id: Long,
+    val name: String,
+    val icon: ImageVector,
+    val color: Color,
 )

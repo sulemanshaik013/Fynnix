@@ -9,7 +9,7 @@ import com.fynnix.app.core.parser.SmsInput
 import com.fynnix.app.core.parser.TransactionDraft
 import com.fynnix.app.core.utils.Hashing
 import com.fynnix.app.core.utils.TransactionSource
-import com.fynnix.app.features.categories.data.CategoryDao
+import com.fynnix.app.features.categories.domain.CategoryClassifier
 import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import com.fynnix.app.features.transactions.data.FailedTransactionEntity
 import com.fynnix.app.features.transactions.data.TransactionDao
@@ -43,7 +43,7 @@ class TransactionIngestionUseCase @Inject constructor(
     private val pipeline: Pipeline,
     private val transactionDao: TransactionDao,
     private val failedDao: FailedTransactionDao,
-    private val categoryDao: CategoryDao,
+    private val categoryClassifier: CategoryClassifier,
     private val accountResolver: AccountResolver,
 ) {
     suspend fun ingest(raw: RawSms): IngestionResult {
@@ -110,7 +110,7 @@ class TransactionIngestionUseCase @Inject constructor(
             currency          = "INR",
             type              = draft.type,
             merchant          = draft.merchant,
-            categoryId        = categorize(draft.merchant),
+            categoryId        = categoryClassifier.classify(draft.merchant, draft.amount),
             accountId         = accountId.takeIf { it > 0 },
             dateTime          = if (draft.date > 0) draft.date else raw.timestamp,
             source            = TransactionSource.SMS,
@@ -121,21 +121,6 @@ class TransactionIngestionUseCase @Inject constructor(
             smsHash           = smsHash,
             dedupKey          = dedupKey,
         )
-    }
-
-    private suspend fun categorize(merchant: String): Long {
-        val m = merchant.lowercase()
-        val name = when {
-            listOf("swiggy", "zomato", "food", "restaurant", "starbucks", "cafe").any { m.contains(it) } -> "Food"
-            listOf("uber", "ola", "rapido", "fuel", "petrol", "metro", "irctc").any { m.contains(it) } -> "Transport"
-            listOf("amazon", "flipkart", "myntra", "shopping", "ajio").any { m.contains(it) } -> "Shopping"
-            listOf("netflix", "spotify", "hotstar", "prime", "youtube").any { m.contains(it) } -> "Entertainment"
-            listOf("pharmacy", "hospital", "clinic", "medplus", "apollo").any { m.contains(it) } -> "Health"
-            listOf("electric", "bill", "recharge", "broadband", "gas").any { m.contains(it) } -> "Bills"
-            listOf("salary", "payroll").any { m.contains(it) } -> "Income"
-            else -> "Uncategorized"
-        }
-        return categoryDao.findIdByName(name) ?: 0L
     }
 
     private fun buildDedupKey(draft: TransactionDraft): String {

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,10 +32,12 @@ import kotlinx.coroutines.launch
 fun DataManagementScreen(
     onBack: () -> Unit,
     onManageCategories: () -> Unit,
+    onNavigateToFailedSms: () -> Unit = {},
 ) {
     val viewModel: DataManagementViewModel = hiltViewModel()
     val selectedDays by viewModel.selectedDays.collectAsState()
     val status by viewModel.status.collectAsState()
+    val failedSmsCount by viewModel.failedSmsCount.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -150,6 +153,16 @@ fun DataManagementScreen(
                 trailing = "Soon",
             )
 
+            SectionHeader("DIAGNOSTICS")
+            ActionRow(
+                icon = Icons.Default.Warning,
+                title = "Failed SMS Parsing",
+                subtitle = "Review messages that couldn't be parsed",
+                onClick = onNavigateToFailedSms,
+                trailing = failedSmsCount.takeIf { it > 0 }?.let { if (it > 99) "99+" else "$it" },
+                trailingIsAlert = failedSmsCount > 0,
+            )
+
             SectionHeader("CATEGORIES")
             ActionRow(
                 icon = Icons.Default.Category,
@@ -179,6 +192,7 @@ private fun ActionRow(
     subtitle: String,
     onClick: () -> Unit,
     trailing: String? = null,
+    trailingIsAlert: Boolean = false,
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -189,22 +203,23 @@ private fun ActionRow(
             modifier = Modifier.clickable(onClick = onClick).padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = null, tint = Primary, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = null, tint = if (trailingIsAlert) Color(0xFFF59E0B) else Primary, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, color = Color.White)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
             if (trailing != null) {
+                val badgeColor = if (trailingIsAlert) Color(0xFFF59E0B) else Primary
                 Surface(
-                    color = Primary.copy(alpha = 0.15f),
+                    color = badgeColor.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp),
                 ) {
                     Text(
                         trailing,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Primary,
+                        color = badgeColor,
                     )
                 }
             }
