@@ -23,7 +23,7 @@ import com.fynnix.app.features.transactions.data.TransactionEntity
         BudgetEntity::class,
         FailedTransactionEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class,DateTimeConverters::class)

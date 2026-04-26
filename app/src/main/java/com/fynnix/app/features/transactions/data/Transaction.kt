@@ -14,6 +14,7 @@ data class Transaction(
     val dateTime: Long,
     val type: TransactionType,
     val isReviewed: Boolean,
+    val isExcluded: Boolean = false,
     val isSplit: Boolean,
     val splitAmount: Double?,
     val isReimbursement: Boolean,

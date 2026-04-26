@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.analytics.InsightGenerator
 import com.fynnix.app.core.analytics.SubscriptionDetector
+import com.fynnix.app.core.analytics.TimeRange
 import com.fynnix.app.core.analytics.TimeRanges
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.utils.AccountSource
@@ -17,6 +18,7 @@ import com.fynnix.app.features.categories.ui.CategorySpend
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -61,7 +63,13 @@ class InsightsViewModel @Inject constructor(
     private val userPrefs: UserPreferences,
 ) : ViewModel() {
 
-    private val monthTick = TimeRanges.ticking(TimeRanges::thisMonth)
+    /** Currently selected reporting period — driven by the screen's filter chips / month picker. */
+    private val _selectedRange = MutableStateFlow(TimeRanges.thisMonth())
+    val selectedRange: kotlinx.coroutines.flow.StateFlow<TimeRange> = _selectedRange
+
+    fun setRange(range: TimeRange) {
+        _selectedRange.value = range
+    }
 
     val accounts = accountDao.getAllAccounts()
         .map { accs ->
@@ -85,7 +93,7 @@ class InsightsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val categorySpend = monthTick
+    val categorySpend = _selectedRange
         .flatMapLatest { range ->
             combine(
                 transactionDao.categorySpendFlow(range.start, range.end),
@@ -106,11 +114,11 @@ class InsightsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val totalSpend = monthTick
+    val totalSpend = _selectedRange
         .flatMapLatest { range -> transactionDao.sumDebitsFlow(range.start, range.end) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val insights = monthTick
+    val insights = _selectedRange
         .flatMapLatest { range ->
             combine(
                 transactionDao.getByDateRange(range.start, range.end),

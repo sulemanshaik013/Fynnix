@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fynnix.app.core.analytics.TimeRanges
 import com.fynnix.app.features.accounts.ui.components.MyAccountsSection
 import com.fynnix.app.features.home.ui.components.DonutChart
 import com.fynnix.app.features.home.ui.components.DonutChartLegend
@@ -76,7 +77,19 @@ fun InsightsScreen(onEditAccountsClick: () -> Unit) {
                     items(filterOptions) { period ->
                         FilterChip(
                             selected = filterPeriod == period,
-                            onClick = { filterPeriod = period },
+                            onClick = {
+                                filterPeriod = period
+                                when (period) {
+                                    "Today" -> viewModel.setRange(TimeRanges.today())
+                                    "This Week" -> viewModel.setRange(TimeRanges.thisWeek())
+                                    "This Month" -> {
+                                        selectedDate = Calendar.getInstance()
+                                        viewModel.setRange(TimeRanges.thisMonth())
+                                    }
+                                    "This Year" -> viewModel.setRange(TimeRanges.thisYear())
+                                    "Custom" -> showDatePicker = true
+                                }
+                            },
                             label = { Text(period) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -160,6 +173,8 @@ fun InsightsScreen(onEditAccountsClick: () -> Unit) {
                         TextButton(
                             onClick = {
                                 selectedDate = month
+                                filterPeriod = "Custom"
+                                viewModel.setRange(TimeRanges.forMonth(month))
                                 showDatePicker = false
                             },
                             modifier = Modifier.fillMaxWidth()

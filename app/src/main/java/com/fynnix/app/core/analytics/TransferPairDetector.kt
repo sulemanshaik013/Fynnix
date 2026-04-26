@@ -69,7 +69,7 @@ class TransferPairDetector @Inject constructor(
         for (debit in savingsLikeDebits) {
             val match = opposingCredits.asSequence()
                 .filter { it.id !in usedCreditIds }
-                .filter { isMatch(debit, it) }
+                .filter { isMatch(debit, it, accountTypes) }
                 .sortedBy { abs(it.dateTime - debit.dateTime) }
                 .firstOrNull() ?: continue
 
@@ -83,7 +83,11 @@ class TransferPairDetector @Inject constructor(
         return paired
     }
 
-    private fun isMatch(debit: TransactionEntity, credit: TransactionEntity): Boolean {
+    private fun isMatch(
+        debit: TransactionEntity,
+        credit: TransactionEntity,
+        accountTypes: Map<Long, AccountType>,
+    ): Boolean {
         if (debit.accountId == null || credit.accountId == null) return false
         if (debit.accountId == credit.accountId) return false
         if (abs(debit.amount - credit.amount) > AMOUNT_EPSILON) return false
@@ -91,8 +95,15 @@ class TransferPairDetector @Inject constructor(
         val dt = abs(debit.dateTime - credit.dateTime)
         if (dt > LOOSE_WINDOW_MS) return false
 
+        // A credit landing in a CREDIT_CARD account within the tight window is safe to
+        // treat as a bill payment on structure alone — money only enters a credit-card
+        // account via the cardholder's own payment, never an unrelated external credit.
+        // Wallet credits are not equally safe: cashback/refunds routinely land in a
+        // wallet with no relation to any specific debit, so those always require an
+        // explicit keyword match regardless of how close the two legs are in time.
         val tight = dt <= TIGHT_WINDOW_MS
-        if (tight) return true
+        val creditIsCreditCard = accountTypes[credit.accountId] == AccountType.CREDIT_CARD
+        if (tight && creditIsCreditCard) return true
 
         return bodyMatchesBillPayment(debit) || bodyMatchesPaymentReceived(credit)
     }

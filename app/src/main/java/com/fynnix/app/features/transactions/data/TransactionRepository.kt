@@ -89,6 +89,7 @@ fun TransactionEntity.toDomain() = Transaction(
     dateTime = dateTime,
     type = type,
     isReviewed = isReviewed,
+    isExcluded = isExcluded,
     isSplit = isSplit,
     splitAmount = splitAmount,
     isReimbursement = isReimbursement,

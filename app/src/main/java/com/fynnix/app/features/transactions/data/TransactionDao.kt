@@ -8,6 +8,11 @@ data class CategorySpendRow(
     val total: Double,
 )
 
+data class AccountSpendRow(
+    val accountId: Long,
+    val total: Double,
+)
+
 data class MerchantGroupRow(
     val merchant: String,
     val txCount: Int,
@@ -79,6 +84,22 @@ interface TransactionDao {
     fun categorySpendFlow(start: Long, end: Long): Flow<List<CategorySpendRow>>
 
     @Query(
+        "SELECT accountId, SUM(amount) AS total FROM transactions " +
+            "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL " +
+            "AND accountId IS NOT NULL AND dateTime BETWEEN :start AND :end " +
+            "GROUP BY accountId"
+    )
+    fun accountSpendFlow(start: Long, end: Long): Flow<List<AccountSpendRow>>
+
+    @Query(
+        "SELECT accountId, SUM(amount) AS total FROM transactions " +
+            "WHERE type = 'CREDIT' AND isExcluded = 0 AND deletedAt IS NULL " +
+            "AND accountId IS NOT NULL AND dateTime BETWEEN :start AND :end " +
+            "GROUP BY accountId"
+    )
+    fun accountIncomeFlow(start: Long, end: Long): Flow<List<AccountSpendRow>>
+
+    @Query(
         "SELECT merchant AS merchant, COUNT(*) AS txCount, AVG(amount) AS avgAmount FROM transactions " +
             "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL AND merchant <> '' " +
             "GROUP BY merchant HAVING txCount >= 3"
@@ -95,6 +116,9 @@ interface TransactionDao {
 
     @Query("UPDATE transactions SET isExcluded = :excluded, isUserEdited = 1 WHERE id = :id")
     suspend fun markExcluded(id: String, excluded: Boolean)
+
+    @Query("UPDATE transactions SET accountId = :newId WHERE accountId = :oldId")
+    suspend fun reassignAccount(oldId: Long, newId: Long)
 
     /** Soft-delete: sets deletedAt timestamp instead of removing the row. */
     @Query("UPDATE transactions SET deletedAt = :timestamp WHERE id = :id")

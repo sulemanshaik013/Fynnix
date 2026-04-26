@@ -12,15 +12,16 @@ import javax.inject.Singleton
  *
  * Account identity = (bankName, lastFourDigits, type).
  *
- * Type detection rules (cheap, body-keyword based):
+ * Type detection rules (body-keyword based):
  *  - "credit card" / "credit limit" / "available limit"  → CREDIT_CARD
  *  - "wallet"                                            → WALLET
  *  - VPA-only with no last4                              → UPI (last4 = "")
  *  - everything else                                     → SAVINGS
  *
- * Balance: if the SMS body contained a snapshot (`Avl Bal: …`) and is newer
- * than the stored snapshot, we update it. We do NOT compute running totals
- * from transactions — banks are authoritative.
+ * Bank name resolution priority:
+ *  1. Handler name (if not "Generic" — i.e. a known-bank parser matched)
+ *  2. Sender-code map (e.g. "HDFCBK" → "HDFC") — prevents duplicate "Other" accounts
+ *  3. Generic fallback ("Wallet" / "UPI" / "Other")
  */
 @Singleton
 class AccountResolver @Inject constructor(
@@ -28,14 +29,13 @@ class AccountResolver @Inject constructor(
 ) {
 
     /** Resolves or creates an account for [draft]. Returns its row id. */
-    suspend fun resolve(draft: TransactionDraft, smsBodyLower: String): Long {
+    suspend fun resolve(draft: TransactionDraft, smsBodyLower: String, senderCode: String = ""): Long {
         val type = detectType(smsBodyLower, draft.handlerName)
-        val bank = bankNameFor(draft.handlerName, type)
+        val bank = bankNameFor(draft.handlerName, type, senderCode)
         val last4 = draft.accountLast4?.takeIf { it.isNotBlank() } ?: ""
 
         val existing = accountDao.findByKey(bank, last4, type)
         if (existing != null) {
-            // Update balance if newer.
             val balance = draft.balance
             if (balance != null && draft.date > existing.updatedAt) {
                 accountDao.setBalance(existing.id, balance, draft.date)
@@ -55,7 +55,6 @@ class AccountResolver @Inject constructor(
         )
         val id = accountDao.insert(newRow)
         return if (id > 0) id else
-            // INSERT IGNORE returned -1 — race; re-fetch.
             (accountDao.findByKey(bank, last4, type)?.id ?: -1L)
     }
 
@@ -71,14 +70,20 @@ class AccountResolver @Inject constructor(
         else -> AccountType.SAVINGS
     }
 
-    private fun bankNameFor(handlerName: String, type: AccountType): String {
-        // For UPI VPAs from generic handler, derive bank from VPA suffix later;
-        // for now, fall back to the handler display name.
+    private fun bankNameFor(handlerName: String, type: AccountType, senderCode: String): String {
+        if (handlerName != "Generic") return handlerName
+        val fromSender = senderToBank(senderCode)
         return when (type) {
-            AccountType.WALLET -> if (handlerName == "Generic") "Wallet" else handlerName
-            AccountType.UPI -> if (handlerName == "Generic") "UPI" else handlerName
-            else -> handlerName.takeIf { it != "Generic" } ?: "Other"
+            AccountType.WALLET -> fromSender ?: "Wallet"
+            AccountType.UPI -> fromSender ?: "UPI"
+            else -> fromSender ?: "Other"
         }
+    }
+
+    private fun senderToBank(sender: String): String? {
+        if (sender.isBlank()) return null
+        val s = sender.uppercase()
+        return SENDER_BANK_MAP.entries.firstOrNull { (key, _) -> s.contains(key) }?.value
     }
 
     private fun displayName(bank: String, last4: String, type: AccountType): String {
@@ -89,5 +94,31 @@ class AccountResolver @Inject constructor(
             AccountType.SAVINGS -> "Savings"
         }
         return if (last4.isNotBlank()) "$bank $typeLabel ••$last4" else "$bank $typeLabel"
+    }
+
+    companion object {
+        val SENDER_BANK_MAP: Map<String, String> = mapOf(
+            "HDFCBK" to "HDFC",   "HDFCBN" to "HDFC",
+            "ICICIB" to "ICICI",  "ICICI"  to "ICICI",
+            "SBINSG" to "SBI",    "SBIINB" to "SBI",   "SBISMS" to "SBI", "SBIBNK" to "SBI",
+            "AXISBK" to "Axis",   "AXISBN" to "Axis",  "AXIS"   to "Axis",
+            "KOTAKB" to "Kotak",  "KOTAK"  to "Kotak",
+            "INDBNK" to "Indian Bank",
+            "PNBSMS" to "PNB",    "PNBINB" to "PNB",
+            "BOIIND" to "BOI",
+            "YESBNK" to "Yes Bank",
+            "IDFCBK" to "IDFC",   "IDFC"   to "IDFC",
+            "FEDBK"  to "Federal Bank",
+            "CANBNK" to "Canara", "CANARA" to "Canara",
+            "BARODM" to "Bank of Baroda",
+            "UNIONB" to "Union Bank",
+            "CSBBNK" to "CSB",
+            "RBLBNK" to "RBL",
+            "SCBNKI" to "Standard Chartered",
+            "PAYTMB" to "Paytm",  "PYTMSM" to "Paytm", "PAYTM" to "Paytm",
+            "PHONEPE" to "PhonePe",
+            "AMAZPB" to "Amazon Pay",
+            "MOBIKW" to "Mobikwik",
+        )
     }
 }

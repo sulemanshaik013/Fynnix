@@ -29,6 +29,19 @@ object TimeRanges {
         return withDayBoundary(cal) { Calendar.getInstance() }
     }
 
+    /** Full calendar-month range for an arbitrary (possibly past) month, e.g. from a date picker. */
+    fun forMonth(cal: Calendar): TimeRange {
+        val start = (cal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1) }.startOfDay()
+        val end = (cal.clone() as Calendar).apply {
+            set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }.timeInMillis
+        return TimeRange(start, end)
+    }
+
     private inline fun withDayBoundary(transform: (Calendar) -> Calendar): TimeRange {
         val start = transform(Calendar.getInstance()).startOfDay()
         val end = System.currentTimeMillis()

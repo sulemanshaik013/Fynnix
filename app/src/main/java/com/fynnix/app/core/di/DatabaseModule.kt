@@ -53,7 +53,11 @@ object DatabaseModule {
             )
         }
 
+        // SupportFactory copies the passphrase into its own internal state during
+        // construction, so the original array can be zeroed immediately afterward to
+        // avoid leaving the raw key sitting in the JVM heap longer than necessary.
         val factory = SupportFactory(passphrase)
+        java.util.Arrays.fill(passphrase, 0)
 
         return try {
             buildDatabase(context, factory)

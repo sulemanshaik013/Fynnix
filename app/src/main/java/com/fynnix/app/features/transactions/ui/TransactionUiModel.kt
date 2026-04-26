@@ -15,6 +15,7 @@ data class TransactionUiModel(
     val type: TransactionType,
     val categoryId: Long = 0L,
     val isReviewed: Boolean = true,
+    val isExcluded: Boolean = false,
     val source: String = "Manual",
     val rawMessage: String = "",
     val messageSource: String = "",

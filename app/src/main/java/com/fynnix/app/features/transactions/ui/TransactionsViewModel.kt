@@ -30,6 +30,13 @@ enum class TransactionFilter(val label: String) {
     NEEDS_REVIEW("Needs review"),
 }
 
+enum class SortOrder(val label: String) {
+    NEWEST_FIRST("Newest first"),
+    OLDEST_FIRST("Oldest first"),
+    AMOUNT_HIGH("Highest amount"),
+    AMOUNT_LOW("Lowest amount"),
+}
+
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     application: Application,
@@ -44,13 +51,17 @@ class TransactionsViewModel @Inject constructor(
     private val _filter = MutableStateFlow(TransactionFilter.ALL)
     val filter: StateFlow<TransactionFilter> = _filter
 
+    private val _sortOrder = MutableStateFlow(SortOrder.NEWEST_FIRST)
+    val sortOrder: StateFlow<SortOrder> = _sortOrder
+
     val transactions: StateFlow<List<TransactionUiModel>> =
         combine(
             transactionRepository.getAllTransactions(),
             transactionRepository.categoryMetaFlow,
             _query,
             _filter,
-        ) { list, meta, q, f ->
+            _sortOrder,
+        ) { list, meta, q, f, sort ->
             list
                 .asSequence()
                 .filter { tx ->
@@ -84,10 +95,19 @@ class TransactionsViewModel @Inject constructor(
                         type          = tx.type,
                         categoryId    = tx.categoryId,
                         isReviewed    = tx.isReviewed,
+                        isExcluded    = tx.isExcluded,
                         source        = tx.source.name,
                         rawMessage    = tx.rawMessage,
                         messageSource = tx.messageSource,
                     )
+                }
+                .let { seq ->
+                    when (sort) {
+                        SortOrder.NEWEST_FIRST -> seq.sortedByDescending { it.dateTime }
+                        SortOrder.OLDEST_FIRST -> seq.sortedBy { it.dateTime }
+                        SortOrder.AMOUNT_HIGH  -> seq.sortedByDescending { it.amount }
+                        SortOrder.AMOUNT_LOW   -> seq.sortedBy { it.amount }
+                    }
                 }
                 .toList()
         }
@@ -106,6 +126,7 @@ class TransactionsViewModel @Inject constructor(
 
     fun setQuery(q: String) { _query.value = q }
     fun setFilter(f: TransactionFilter) { _filter.value = f }
+    fun setSortOrder(s: SortOrder) { _sortOrder.value = s }
 
     fun manualSync() {
         SyncWorker.scheduleManualSync(getApplication(), userPreferences.getSyncDays())

@@ -76,7 +76,21 @@ fun TransactionListItem(
                     color = Color.White
                 )
                 
-                if (transaction.isP2P) {
+                if (transaction.isExcluded) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFF60A5FA).copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "TRANSFER",
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 8.sp,
+                            color = Color(0xFF60A5FA)
+                        )
+                    }
+                } else if (transaction.isP2P) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Surface(
                         shape = RoundedCornerShape(4.dp),

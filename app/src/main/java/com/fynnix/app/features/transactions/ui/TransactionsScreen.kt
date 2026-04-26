@@ -7,10 +7,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,16 +43,17 @@ fun TransactionsScreen() {
     var editingTransaction by remember { mutableStateOf<TransactionUiModel?>(null) }
     var selectedTransaction by remember { mutableStateOf<TransactionUiModel?>(null) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     val viewModel: TransactionsViewModel = hiltViewModel()
     val transactions by viewModel.transactions.collectAsState()
     val searchQuery by viewModel.query.collectAsState()
     val activeFilter by viewModel.filter.collectAsState()
+    val activeSortOrder by viewModel.sortOrder.collectAsState()
     val categories by viewModel.categoryItems.collectAsState()
 
     val unreviewedCount = transactions.count { !it.isReviewed }
 
-    // Auto-mark a transaction as reviewed when the detail sheet opens.
     LaunchedEffect(selectedTransaction?.id) {
         selectedTransaction?.takeIf { !it.isReviewed }?.let {
             viewModel.markReviewed(it.id)
@@ -73,21 +78,55 @@ fun TransactionsScreen() {
                 text = "Transactions",
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 32.sp
+                    fontSize = 28.sp
                 ),
                 color = Color.White
             )
-
-            OutlinedButton(
-                onClick = { editingTransaction = null; showTransactionForm = true },
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, Primary),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Primary),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Add New", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Sort button
+                Box {
+                    IconButton(onClick = { showSortMenu = true }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            contentDescription = "Sort",
+                            tint = if (activeSortOrder != SortOrder.NEWEST_FIRST) Primary else Color.Gray,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false },
+                    ) {
+                        SortOrder.values().forEach { order ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        order.label,
+                                        color = if (order == activeSortOrder) Primary else Color.White,
+                                        fontWeight = if (order == activeSortOrder) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                },
+                                onClick = { viewModel.setSortOrder(order); showSortMenu = false },
+                                leadingIcon = {
+                                    if (order == activeSortOrder) {
+                                        Icon(Icons.Default.Check, null, tint = Primary, modifier = Modifier.size(16.dp))
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+                // Add new button
+                OutlinedButton(
+                    onClick = { editingTransaction = null; showTransactionForm = true },
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, Primary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Primary),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                }
             }
         }
 
@@ -98,7 +137,7 @@ fun TransactionsScreen() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
-            placeholder = { Text("Search merchant, amount or SMS text…", color = Color.Gray) },
+            placeholder = { Text("Search merchant, amount or SMS…", color = Color.Gray) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -113,7 +152,9 @@ fun TransactionsScreen() {
                 focusedBorderColor = Primary,
                 unfocusedBorderColor = Color.Gray.copy(alpha = 0.3f),
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
             )
         )
 
@@ -139,32 +180,55 @@ fun TransactionsScreen() {
         if (unreviewedCount > 0) {
             Surface(
                 onClick = { viewModel.setFilter(TransactionFilter.NEEDS_REVIEW) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                color = Primary
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                color = Primary,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Black, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "$unreviewedCount new transactions need review",
+                        text = "$unreviewedCount transaction${if (unreviewedCount > 1) "s" else ""} need review",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.Black,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Black)
                 }
             }
         }
 
+        // Active sort label (shown when non-default)
+        if (activeSortOrder != SortOrder.NEWEST_FIRST) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Sort, null, tint = Primary, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    "Sorted by: ${activeSortOrder.label}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Primary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Reset",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.clickable { viewModel.setSortOrder(SortOrder.NEWEST_FIRST) },
+                )
+            }
+        }
+
         // Transactions List
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
         ) {
             if (transactions.isEmpty()) {
                 item {
@@ -172,42 +236,70 @@ fun TransactionsScreen() {
                         modifier = Modifier.fillParentMaxSize().padding(top = 60.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            "No transactions match these filters",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ReceiptLong,
+                                null,
+                                tint = Color.Gray.copy(alpha = 0.4f),
+                                modifier = Modifier.size(56.dp),
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("No transactions found", color = Color.White, style = MaterialTheme.typography.titleSmall)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Try a different filter or search term", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
                 return@LazyColumn
             }
 
-            val grouped = transactions.groupBy { formatDateHeader(it.dateTime) }
+            // Group by the actual calendar day, not by the rendered label. Grouping by
+            // label would merge transactions that share a day-of-month/month across
+            // different years into one visual block, making unrelated old transactions
+            // appear interleaved with recent ones under the same header.
+            val grouped: List<Pair<Long, List<TransactionUiModel>>> = when (activeSortOrder) {
+                SortOrder.AMOUNT_HIGH, SortOrder.AMOUNT_LOW -> {
+                    // For amount sorts, don't group by date — show as a flat list under a single group
+                    listOf(-1L to transactions)
+                }
+                else -> transactions.groupBy { startOfDay(it.dateTime) }.toList()
+            }
 
-            grouped.forEach { (dateLabel, txList) ->
-                item {
-                    val totalForDay = txList.sumOf { if (it.type == TransactionType.DEBIT) it.amount else 0.0 }
+            grouped.forEach { (dayKey, txList) ->
+                val dateLabel = if (dayKey == -1L) "Sorted by amount" else formatDateHeader(dayKey)
+                item(key = dayKey) {
+                    val dayDebits = txList.sumOf { if (it.type == TransactionType.DEBIT) it.amount else 0.0 }
+                    val dayCredits = txList.sumOf { if (it.type == TransactionType.CREDIT) it.amount else 0.0 }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 16.dp, bottom = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             text = dateLabel,
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
+                                letterSpacing = 1.sp,
                             ),
-                            color = Color.Gray
+                            color = Color.Gray,
                         )
-                        if (totalForDay > 0) {
-                            Text(
-                                text = "Total: ₹${String.format(Locale.US, "%,.0f", totalForDay)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.Gray
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (dayCredits > 0) {
+                                Text(
+                                    text = "+₹${formatAmount(dayCredits)}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = Color(0xFF22C55E),
+                                )
+                            }
+                            if (dayDebits > 0) {
+                                Text(
+                                    text = "−₹${formatAmount(dayDebits)}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = Color.Gray,
+                                )
+                            }
                         }
                     }
                 }
@@ -215,30 +307,18 @@ fun TransactionsScreen() {
                 items(txList, key = { it.id }) { transaction ->
                     TransactionListItem(
                         transaction = transaction,
-                        onClick = { selectedTransaction = transaction }
+                        onClick = { selectedTransaction = transaction },
                     )
                 }
             }
 
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Load older transactions...",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Primary,
-                        modifier = Modifier.clickable { /* TODO Load more */ }
-                    )
-                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 
-    // Transaction form sheet (new or edit)
+    // Transaction form (new or edit)
     if (showTransactionForm) {
         TransactionFormSheet(
             categories = categories,
@@ -270,12 +350,11 @@ fun TransactionsScreen() {
         )
     }
 
-    // Delete confirmation
     if (pendingDeleteId != null) {
         AlertDialog(
             onDismissRequest = { pendingDeleteId = null },
             title = { Text("Delete transaction?") },
-            text = { Text("The transaction will be removed from your history.") },
+            text = { Text("This transaction will be removed from your history.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteTransaction(pendingDeleteId!!)
@@ -284,13 +363,13 @@ fun TransactionsScreen() {
                     Text("Delete", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteId = null }) { Text("Cancel") }
-            },
+            dismissButton = { TextButton(onClick = { pendingDeleteId = null }) { Text("Cancel") } },
             containerColor = MaterialTheme.colorScheme.surface,
         )
     }
 }
+
+// ── Transaction form sheet (new + edit) ──────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -300,7 +379,13 @@ fun TransactionFormSheet(
     onDismiss: () -> Unit,
     onSave: (amount: Double, merchant: String, categoryId: Long, dateTime: Long, type: TransactionType, note: String?) -> Unit,
 ) {
-    var amount by remember { mutableStateOf(editing?.amount?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: "") }
+    var amount by remember {
+        mutableStateOf(
+            editing?.amount?.let {
+                if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+            } ?: ""
+        )
+    }
     var merchant by remember { mutableStateOf(editing?.merchantName ?: "") }
     var selectedCategoryId by remember { mutableStateOf(editing?.categoryId ?: 0L) }
     var dateTime by remember { mutableStateOf(editing?.dateTime ?: System.currentTimeMillis()) }
@@ -318,11 +403,13 @@ fun TransactionFormSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .imePadding()
+                .verticalScroll(rememberScrollState())   // scroll when keyboard pushes content
+                .imePadding()                             // shrink visible area above keyboard
+                .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 40.dp)
+                .padding(bottom = 24.dp),
         ) {
-            // Header
+            // Header row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -342,15 +429,11 @@ fun TransactionFormSheet(
                     },
                     enabled = isFormValid,
                 ) {
-                    Text(
-                        "Save",
-                        color = if (isFormValid) Primary else Color.Gray,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text("Save", color = if (isFormValid) Primary else Color.Gray, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // DEBIT / CREDIT toggle
             Row(
@@ -391,24 +474,20 @@ fun TransactionFormSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     BasicTextField(
                         value = amount,
-                        onValueChange = { v -> if (v.all { it.isDigit() || it == '.' } && v.count { it == '.' } <= 1) amount = v },
+                        onValueChange = { v ->
+                            if (v.all { it.isDigit() || it == '.' } && v.count { it == '.' } <= 1) amount = v
+                        },
                         textStyle = MaterialTheme.typography.displayMedium.copy(
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
+                            color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         cursorBrush = SolidColor(Primary),
                         decorationBox = { inner ->
                             Box {
                                 if (amount.isEmpty()) {
-                                    Text(
-                                        "0",
-                                        style = MaterialTheme.typography.displayMedium.copy(
-                                            color = Color.Gray.copy(alpha = 0.3f),
-                                            fontWeight = FontWeight.Bold,
-                                        ),
-                                    )
+                                    Text("0", style = MaterialTheme.typography.displayMedium.copy(
+                                        color = Color.Gray.copy(alpha = 0.3f), fontWeight = FontWeight.Bold,
+                                    ))
                                 }
                                 inner()
                             }
@@ -473,18 +552,19 @@ fun TransactionFormSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface)
                     .clickable { showDatePicker = true }
-                    .padding(vertical = 16.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.CalendarToday, null, tint = Primary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.CalendarToday, null, tint = Primary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(formatDisplayDate(dateTime), color = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.Default.Edit, null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                Text(formatDisplayDate(dateTime), color = Color.White, modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Note
             Text("NOTE (OPTIONAL)", style = MaterialTheme.typography.labelSmall, color = Color.Gray, letterSpacing = 1.sp)
@@ -516,36 +596,49 @@ fun TransactionFormSheet(
                     showDatePicker = false
                 }) { Text("OK", color = Primary) }
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            },
-        ) {
-            DatePicker(state = dpState)
-        }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } },
+        ) { DatePicker(state = dpState) }
     }
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+private fun formatAmount(amount: Double): String =
+    if (amount >= 1_00_000) String.format(Locale.US, "%,.0f", amount)
+    else String.format(Locale.US, "%,.0f", amount)
 
 private fun formatDisplayDate(ts: Long): String {
     if (ts <= 0) return "Today"
     return SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()).format(Date(ts))
 }
 
-private fun formatDateHeader(dateTime: Long): String {
+/** [dayStart] must be a start-of-day timestamp, as produced by [startOfDay]. */
+private fun formatDateHeader(dayStart: Long): String {
     val now = System.currentTimeMillis()
-    val date = Date(dateTime)
-    val dayFormat = SimpleDateFormat("d MMM", Locale.getDefault())
-    val dayMillis = 86400000L
-
-    return when {
-        now - dateTime < dayMillis && isSameDay(now, dateTime) -> "TODAY - ${dayFormat.format(date).uppercase()}"
-        now - dateTime < 2 * dayMillis && isSameDay(now - dayMillis, dateTime) -> "YESTERDAY - ${dayFormat.format(date).uppercase()}"
-        else -> dayFormat.format(date).uppercase()
+    val today = startOfDay(now)
+    val yesterday = startOfDay(today - 86400000L)
+    // Years other than the current one must be shown explicitly — otherwise a
+    // same-day-of-year transaction from a prior year is indistinguishable from
+    // a recent one and visually collapses into the same group.
+    val sameYear = isSameYear(dayStart, now)
+    val dayFormat = SimpleDateFormat(if (sameYear) "d MMM" else "d MMM yyyy", Locale.getDefault())
+    val label = dayFormat.format(Date(dayStart)).uppercase()
+    return when (dayStart) {
+        today -> "TODAY  ·  $label"
+        yesterday -> "YESTERDAY  ·  $label"
+        else -> label
     }
 }
 
-private fun isSameDay(t1: Long, t2: Long): Boolean {
+private fun startOfDay(ts: Long): Long {
+    val cal = Calendar.getInstance().apply { timeInMillis = ts }
+    cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
+    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
+}
+
+private fun isSameYear(t1: Long, t2: Long): Boolean {
     val cal1 = Calendar.getInstance().apply { timeInMillis = t1 }
     val cal2 = Calendar.getInstance().apply { timeInMillis = t2 }
-    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR)
 }

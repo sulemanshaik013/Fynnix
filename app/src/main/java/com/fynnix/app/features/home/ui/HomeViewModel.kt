@@ -86,6 +86,7 @@ class HomeViewModel @Inject constructor(
                     type          = tx.type,
                     categoryId    = tx.categoryId,
                     isReviewed    = tx.isReviewed,
+                    isExcluded    = tx.isExcluded,
                     source        = tx.source.name,
                     rawMessage    = tx.rawMessage,
                     messageSource = tx.messageSource,
@@ -148,14 +149,20 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * "No-spend streak" must count consecutive days with ZERO debit activity, not days
+     * that had spending — walk backward from today/yesterday and stop at the first day
+     * that has a debit transaction, bounded by the earliest known transaction so a
+     * brand-new install with no spending history doesn't report an arbitrarily long streak.
+     */
     private val streakFlow = repository.getTransactions().map { list ->
-        val days = list
+        if (list.isEmpty()) return@map 0
+        val spendingDays = list
             .filter { it.type == TransactionType.DEBIT }
             .map { startOfDay(it.dateTime) }
-            .toSortedSet()
-            .toList()
-            .reversed()
-        countConsecutive(days)
+            .toSet()
+        val earliestDay = list.minOf { startOfDay(it.dateTime) }
+        countNoSpendStreak(spendingDays, earliestDay)
     }
 
     private val totalSpentFlow = monthTick.flatMapLatest { range ->
@@ -204,15 +211,15 @@ class HomeViewModel @Inject constructor(
         return cal.timeInMillis
     }
 
-    private fun countConsecutive(daysDesc: List<Long>): Int {
-        if (daysDesc.isEmpty()) return 0
-        val today     = startOfDay(System.currentTimeMillis())
-        val yesterday = startOfDay(today - 1)
-        if (daysDesc.first() != today && daysDesc.first() != yesterday) return 0
-        var streak = 1
-        for (i in 1 until daysDesc.size) {
-            val expected = startOfDay(daysDesc[i - 1] - 1)
-            if (daysDesc[i] == expected) streak++ else break
+    private fun countNoSpendStreak(spendingDays: Set<Long>, earliestDay: Long): Int {
+        val today = startOfDay(System.currentTimeMillis())
+        // Today doesn't break a prior streak while still "in progress", but if it already
+        // has spending it can't itself count — resume counting from yesterday.
+        var cursor = if (spendingDays.contains(today)) startOfDay(today - 86400000L) else today
+        var streak = 0
+        while (cursor >= earliestDay && !spendingDays.contains(cursor)) {
+            streak++
+            cursor = startOfDay(cursor - 86400000L)
         }
         return streak
     }

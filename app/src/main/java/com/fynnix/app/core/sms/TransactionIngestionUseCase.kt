@@ -46,7 +46,30 @@ class TransactionIngestionUseCase @Inject constructor(
     private val categoryClassifier: CategoryClassifier,
     private val accountResolver: AccountResolver,
 ) {
-    suspend fun ingest(raw: RawSms): IngestionResult {
+    /**
+     * A single malformed or unexpected SMS must never abort an entire sync batch — that
+     * would leave [SyncWorker] retrying the same window indefinitely, hitting the same
+     * failure on every attempt with no forward progress. Any unexpected exception from
+     * this message is therefore caught here and recorded as a failure so the caller can
+     * keep processing the rest of the batch.
+     */
+    suspend fun ingest(raw: RawSms): IngestionResult = try {
+        ingestOrThrow(raw)
+    } catch (e: Exception) {
+        Log.e(TAG, "Unexpected failure ingesting SMS id=${raw.id}", e)
+        runCatching {
+            failedDao.insert(
+                FailedTransactionEntity(
+                    rawSMS    = raw.body,
+                    reason    = "INGESTION_ERROR (${e::class.simpleName}: ${e.message})",
+                    timestamp = raw.timestamp,
+                )
+            )
+        }
+        IngestionResult(failed = 1)
+    }
+
+    private suspend fun ingestOrThrow(raw: RawSms): IngestionResult {
         val smsHash = Hashing.sha256Hex(raw.sender + "|" + raw.body)
 
         // Layer 1: exact SMS dedup
@@ -103,9 +126,14 @@ class TransactionIngestionUseCase @Inject constructor(
         smsHash: String,
         dedupKey: String,
     ): TransactionEntity {
-        val accountId = accountResolver.resolve(draft, raw.body.lowercase())
+        val accountId = accountResolver.resolve(draft, raw.body.lowercase(), raw.sender)
         return TransactionEntity(
-            id                = draft.reference.ifEmpty { raw.id },
+            // The SMS-extracted reference (UMRN/UTR) is not safe as a primary key: banks
+            // legitimately reuse the same reference across multiple billing cycles for
+            // autopay/mandate debits, which would make every cycle after the first
+            // silently collide with — and get dropped as a "duplicate" of — the first.
+            // raw.id is unique per source message and is what identity must be keyed on.
+            id                = raw.id,
             amount            = draft.amount,
             currency          = "INR",
             type              = draft.type,
@@ -124,7 +152,10 @@ class TransactionIngestionUseCase @Inject constructor(
     }
 
     private fun buildDedupKey(draft: TransactionDraft): String {
-        val amountCents  = (draft.amount * 100).toLong()
+        // Round rather than truncate: binary floating-point error can put amount*100
+        // just under the intended integer (e.g. 19.99*100 == 1998.9999999999998),
+        // which truncation would misread as 1998 paise instead of 1999.
+        val amountCents  = Math.round(draft.amount * 100)
         val dayBucket    = (draft.date / DAY_MILLIS).toString()
         val merchantNorm = draft.merchant.lowercase()
             .replace(Regex("[^a-z0-9]"), "")

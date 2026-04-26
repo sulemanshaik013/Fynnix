@@ -56,7 +56,7 @@ fun StreakBanner(
                     color = Color.White
                 )
                 Text(
-                    text = "Keep up your saving momentum!",
+                    text = "No spending — keep it up!",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White.copy(alpha = 0.7f)
                 )
