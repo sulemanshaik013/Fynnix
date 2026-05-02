@@ -1,5 +1,6 @@
 package com.fynnix.app.core.analytics
 
+import com.fynnix.app.core.utils.AppConstants
 import com.fynnix.app.features.subscriptions.ui.SubscriptionHistory
 import com.fynnix.app.features.subscriptions.ui.SubscriptionUiModel
 import com.fynnix.app.features.transactions.data.TransactionDao
@@ -22,18 +23,11 @@ import kotlin.math.abs
 class SubscriptionDetector @Inject constructor(
     private val dao: TransactionDao,
 ) {
-    suspend fun detect(): List<SubscriptionUiModel> {
-        val candidates = dao.recurringCandidatesFlow()
-        // We use a flow query for liveness, but here in suspend we collect once.
-        // The caller is a ViewModel that re-collects on dao changes.
-        return emptyList() // never used directly — see flowDetect()
-    }
-
     /** Build subscription list from a snapshot of recurring candidate merchants. */
     suspend fun buildFromCandidates(merchants: List<String>): List<SubscriptionUiModel> =
         merchants.mapNotNull { merchant ->
             val tx = dao.txByMerchant(merchant)
-            if (tx.size < 3) return@mapNotNull null
+            if (tx.size < AppConstants.SUBSCRIPTION_MIN_OCCURRENCES) return@mapNotNull null
             buildSubscription(merchant, tx)
         }
 
@@ -43,23 +37,28 @@ class SubscriptionDetector @Inject constructor(
     ): SubscriptionUiModel? {
         val sorted = tx.sortedBy { it.dateTime }
 
-        // Validate interval consistency.
+        // Validate interval consistency. Checking only the average lets wildly uneven
+        // gaps average out to something in-range (e.g. 10 and 50 days average to a
+        // plausible 30) — every individual gap must fall in the accepted band too.
         val intervalsDays = sorted.zipWithNext { a, b ->
             (b.dateTime - a.dateTime) / DAY_MILLIS.toDouble()
         }
         if (intervalsDays.isEmpty()) return null
+        val minDays = AppConstants.SUBSCRIPTION_MIN_INTERVAL_DAYS
+        val maxDays = AppConstants.SUBSCRIPTION_MAX_INTERVAL_DAYS
+        if (intervalsDays.any { it < minDays || it > maxDays }) return null
         val avgInterval = intervalsDays.average()
-        if (avgInterval < 25 || avgInterval > 35) return null
 
-        // Validate amount consistency (±15% from median).
+        // Validate amount consistency (±variance from median).
+        val variance = AppConstants.SUBSCRIPTION_AMOUNT_VARIANCE
         val sortedAmounts = sorted.map { it.amount }.sorted()
         val median = sortedAmounts[sortedAmounts.size / 2]
-        val withinTolerance = sortedAmounts.all { abs(it - median) <= median * 0.15 }
+        val withinTolerance = sortedAmounts.all { abs(it - median) <= median * variance }
         if (!withinTolerance) return null
 
         val intervalScore = 1.0 - (abs(30.0 - avgInterval) / 5.0).coerceIn(0.0, 1.0) * 0.4
         val amountVariance = sortedAmounts.map { abs(it - median) / median }.average()
-        val amountScore = 1.0 - amountVariance.coerceIn(0.0, 0.15) / 0.15 * 0.3
+        val amountScore = 1.0 - amountVariance.coerceIn(0.0, variance) / variance * 0.3
         val confidence = (intervalScore * amountScore).toFloat().coerceIn(0.5f, 0.99f)
 
         val last = sorted.last()
@@ -83,7 +82,7 @@ class SubscriptionDetector @Inject constructor(
     }
 
     private companion object {
-        const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        val DAY_MILLIS = AppConstants.DAY_MILLIS
         val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val SHORT_DATE = SimpleDateFormat("d MMM", Locale.US)
     }

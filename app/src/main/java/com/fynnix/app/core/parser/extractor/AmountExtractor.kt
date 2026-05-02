@@ -1,6 +1,7 @@
 package com.fynnix.app.core.parser.extractor
 
 import com.fynnix.app.core.parser.contract.Extractor
+import com.fynnix.app.core.utils.AppConstants
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -75,8 +76,8 @@ class AmountExtractor @Inject constructor() : Extractor<Double> {
     private fun sanitize(raw: String): Double? {
         val cleaned = raw.replace(",", "")
         val v = cleaned.toDoubleOrNull() ?: return null
-        // Reject zero, negative, or astronomically large values (> 1 crore).
-        if (v <= 0.0 || v > 1e7) return null
+        // Reject zero, negative, or astronomically large values.
+        if (v <= 0.0 || v > AppConstants.AMOUNT_MAX_INR) return null
         return v
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
@@ -74,11 +75,28 @@ fun CategoriesAndBudgetsScreen(onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(categories) { category ->
+                    var pendingDelete by remember { mutableStateOf(false) }
                     CategoryBudgetItem(
                         category = category,
                         onSave = { newBudget -> viewModel.updateBudget(category.id, newBudget) },
-                        onDelete = { viewModel.removeCategory(category.id) },
+                        onDelete = { pendingDelete = true },
                     )
+                    if (pendingDelete) {
+                        AlertDialog(
+                            onDismissRequest = { pendingDelete = false },
+                            title = { Text("Remove ${category.name}?") },
+                            text = { Text("Its budget will be removed too. Existing transactions keep their category.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    viewModel.removeCategory(category.id)
+                                    pendingDelete = false
+                                }) { Text("Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { pendingDelete = false }) { Text("Cancel") }
+                            },
+                        )
+                    }
                 }
 
                 item {
@@ -178,10 +196,11 @@ fun CategoryBudgetItem(
                     BasicTextField(
                         value = budgetText,
                         onValueChange = {
-                            if (it.all { c -> c.isDigit() }) {
-                                budgetText = it
-                                onSave(it.toDoubleOrNull() ?: 0.0)
-                            }
+                            // Update the visible text on every keystroke, but only commit to
+                            // the database on blur — writing per keystroke let unordered
+                            // concurrent coroutines race and occasionally persist a stale
+                            // intermediate value instead of the final typed amount.
+                            if (it.all { c -> c.isDigit() }) budgetText = it
                         },
                         textStyle = MaterialTheme.typography.titleMedium.copy(
                             color = Color.White,
@@ -190,7 +209,11 @@ fun CategoryBudgetItem(
                         ),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         cursorBrush = SolidColor(Primary),
-                        modifier = Modifier.width(80.dp)
+                        modifier = Modifier
+                            .width(80.dp)
+                            .onFocusChanged { focus ->
+                                if (!focus.isFocused) onSave(budgetText.toDoubleOrNull() ?: 0.0)
+                            },
                     )
                     IconButton(onClick = onDelete) {
                         Icon(

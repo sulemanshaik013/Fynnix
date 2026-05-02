@@ -42,6 +42,7 @@ fun DataManagementScreen(
     val failedSmsCount by viewModel.failedSmsCount.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
     LaunchedEffect(status) {
         status?.let {
@@ -58,7 +59,7 @@ fun DataManagementScreen(
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let(viewModel::importCsv) }
+    ) { uri -> uri?.let { pendingImportUri = it } }
 
     Scaffold(
         topBar = {
@@ -175,6 +176,30 @@ fun DataManagementScreen(
                 onClick = onManageCategories,
             )
         }
+    }
+
+    if (pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text("Import from CSV?") },
+            text = {
+                Text(
+                    "New transactions will be added to your history. Rows whose id " +
+                        "already exists are skipped, not overwritten.",
+                    color = Color.Gray,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.importCsv(pendingImportUri!!)
+                    pendingImportUri = null
+                }) { Text("Import", color = Primary, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingImportUri = null }) { Text("Cancel") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+        )
     }
 }
 

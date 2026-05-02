@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.fynnix.app.core.utils.TransactionSource
 import com.fynnix.app.core.utils.TransactionType
+import com.fynnix.app.features.categories.data.CategoryDao
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,6 +18,13 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Outcome of a CSV import, broken down so the caller can give the user an honest count. */
+data class CsvImportResult(
+    val imported: Int = 0,
+    val skippedExisting: Int = 0,
+    val invalid: Int = 0,
+)
+
 /**
  * Lightweight CSV bridge for transaction data.
  *
@@ -27,6 +35,7 @@ import javax.inject.Singleton
 class CsvIo @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dao: TransactionDao,
+    private val categoryDao: CategoryDao,
 ) {
     private val df = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -44,37 +53,57 @@ class CsvIo @Inject constructor(
         return tx.size
     }
 
-    suspend fun importFrom(uri: Uri): Int {
+    /**
+     * Imports rows from [uri]. A row whose id already exists in the database is skipped
+     * rather than overwritten — CSV ids are attacker/user-controlled plain text, and
+     * silently replacing an existing transaction's data on an id collision (e.g. from
+     * re-importing an edited export, or a differently-sourced CSV using the same id
+     * scheme) would corrupt live transaction history with no way to detect or undo it.
+     */
+    suspend fun importFrom(uri: Uri): CsvImportResult {
         val rows = context.contentResolver.openInputStream(uri)?.use { stream ->
             BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { r ->
                 r.readLines()
             }
-        } ?: return 0
-        if (rows.isEmpty()) return 0
+        } ?: return CsvImportResult()
+        if (rows.isEmpty()) return CsvImportResult()
 
         val data = if (rows.first().startsWith("id,")) rows.drop(1) else rows
-        var inserted = 0
+        val validCategoryIds = categoryDao.getAll().map { it.id }.toSet()
+
+        var invalid = 0
+        var skippedExisting = 0
+        val toInsert = mutableListOf<TransactionEntity>()
+
         for (row in data) {
             val cols = parseRow(row)
-            if (cols.size < 9) continue
+            if (cols.size < 9) { invalid++; continue }
+
             val entity = runCatching {
+                val amount = cols[3].toDouble()
+                require(amount.isFinite() && amount > 0.0) { "amount out of range" }
+                val categoryId = cols[5].toLongOrNull()?.takeIf { it in validCategoryIds } ?: 0L
                 TransactionEntity(
                     id = cols[0],
                     dateTime = parseDate(cols[1]),
                     type = TransactionType.valueOf(cols[2]),
-                    amount = cols[3].toDouble(),
+                    amount = amount,
                     merchant = cols[4],
-                    categoryId = cols[5].toLongOrNull() ?: 0L,
+                    categoryId = categoryId,
                     messageSource = cols[6],
                     smsReference = cols[7],
                     rawMessage = cols[8],
                     source = TransactionSource.CSV_IMPORT,
                 )
-            }.getOrNull() ?: continue
-            dao.insertReplace(entity)
-            inserted++
+            }.getOrNull()
+
+            if (entity == null) { invalid++; continue }
+            if (dao.getById(entity.id) != null) { skippedExisting++; continue }
+            toInsert += entity
         }
-        return inserted
+
+        if (toInsert.isNotEmpty()) dao.insertAllIgnore(toInsert)
+        return CsvImportResult(imported = toInsert.size, skippedExisting = skippedExisting, invalid = invalid)
     }
 
     private fun toRow(e: TransactionEntity): String = listOf(
@@ -89,11 +118,18 @@ class CsvIo @Inject constructor(
         e.rawMessage,
     ).joinToString(",") { csvEscape(it) }
 
+    /**
+     * Escapes a field for CSV output. Values that start with `=`, `+`, `-`, `@`, tab, or
+     * CR are prefixed with a `'` before quoting — spreadsheet apps (Excel, Google Sheets)
+     * evaluate such leading characters as a formula, and merchant/raw-message fields
+     * originate from SMS text an attacker can influence.
+     */
     private fun csvEscape(s: String): String {
-        if (s.contains(',') || s.contains('"') || s.contains('\n')) {
-            return "\"" + s.replace("\"", "\"\"") + "\""
+        val neutralized = if (s.isNotEmpty() && s[0] in FORMULA_TRIGGER_CHARS) "'$s" else s
+        if (neutralized.contains(',') || neutralized.contains('"') || neutralized.contains('\n')) {
+            return "\"" + neutralized.replace("\"", "\"\"") + "\""
         }
-        return s
+        return neutralized
     }
 
     private fun parseRow(row: String): List<String> {
@@ -127,5 +163,6 @@ class CsvIo @Inject constructor(
 
     private companion object {
         const val HEADER = "id,dateTime,type,amount,merchant,categoryId,messageSource,smsReference,rawMessage"
+        val FORMULA_TRIGGER_CHARS = charArrayOf('=', '+', '-', '@', '\t', '\r')
     }
 }

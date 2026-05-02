@@ -1,7 +1,9 @@
 package com.fynnix.app.core.sms
 
 import android.util.Log
+import androidx.room.withTransaction
 import com.fynnix.app.core.analytics.AccountResolver
+import com.fynnix.app.core.database.AppDatabase
 import com.fynnix.app.core.parser.ParseResult
 import com.fynnix.app.core.parser.Pipeline
 import com.fynnix.app.core.parser.RejectionReason
@@ -41,6 +43,7 @@ data class IngestionResult(
 @Singleton
 class TransactionIngestionUseCase @Inject constructor(
     private val pipeline: Pipeline,
+    private val database: AppDatabase,
     private val transactionDao: TransactionDao,
     private val failedDao: FailedTransactionDao,
     private val categoryClassifier: CategoryClassifier,
@@ -90,15 +93,22 @@ class TransactionIngestionUseCase @Inject constructor(
     ): IngestionResult {
         val dedupKey = buildDedupKey(draft)
 
-        // Layer 2: coarse cross-channel dedup
-        val existing = transactionDao.findByDedupKey(dedupKey)
-        if (existing != null && !existing.isUserEdited) {
-            return IngestionResult(duplicates = 1)
-        }
+        // Resolving-or-creating the account and then inserting a transaction that
+        // references it must be one atomic unit: concurrent incremental syncs for two
+        // messages that resolve to the same brand-new account can otherwise interleave
+        // between the two steps and trip the accountId foreign key on a row that a
+        // concurrent transaction is still in the middle of creating.
+        return database.withTransaction {
+            // Layer 2: coarse cross-channel dedup
+            val existing = transactionDao.findByDedupKey(dedupKey)
+            if (existing != null && !existing.isUserEdited) {
+                return@withTransaction IngestionResult(duplicates = 1)
+            }
 
-        val tx = buildTransaction(raw, draft, smsHash, dedupKey)
-        val rowId = transactionDao.insertIgnore(tx)
-        return if (rowId > 0) IngestionResult(saved = 1) else IngestionResult(duplicates = 1)
+            val tx = buildTransaction(raw, draft, smsHash, dedupKey)
+            val rowId = transactionDao.insertIgnore(tx)
+            if (rowId > 0) IngestionResult(saved = 1) else IngestionResult(duplicates = 1)
+        }
     }
 
     private suspend fun handleRejection(

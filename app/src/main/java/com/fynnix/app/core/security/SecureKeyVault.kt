@@ -60,7 +60,27 @@ class SecureKeyVault @Inject constructor(
     }
 
     fun clearPin() {
-        prefs.edit().remove(KEY_PIN_HASH).remove(KEY_PIN_SALT).apply()
+        prefs.edit()
+            .remove(KEY_PIN_HASH).remove(KEY_PIN_SALT)
+            .remove(KEY_PIN_ATTEMPTS).remove(KEY_PIN_LOCKOUT_UNTIL)
+            .apply()
+    }
+
+    /** Increments the failed-PIN-attempt counter and returns the new count. */
+    fun recordFailedPinAttempt(): Int {
+        val next = prefs.getInt(KEY_PIN_ATTEMPTS, 0) + 1
+        prefs.edit().putInt(KEY_PIN_ATTEMPTS, next).apply()
+        return next
+    }
+
+    fun resetPinAttempts() {
+        prefs.edit().remove(KEY_PIN_ATTEMPTS).remove(KEY_PIN_LOCKOUT_UNTIL).apply()
+    }
+
+    fun getLockoutUntil(): Long = prefs.getLong(KEY_PIN_LOCKOUT_UNTIL, 0L)
+
+    fun setLockoutUntil(epochMs: Long) {
+        prefs.edit().putLong(KEY_PIN_LOCKOUT_UNTIL, epochMs).apply()
     }
 
     private fun encode(b: ByteArray): String =
@@ -74,5 +94,7 @@ class SecureKeyVault @Inject constructor(
         const val KEY_DB_PASSPHRASE = "db_passphrase"
         const val KEY_PIN_SALT = "pin_salt"
         const val KEY_PIN_HASH = "pin_hash"
+        const val KEY_PIN_ATTEMPTS = "pin_attempts"
+        const val KEY_PIN_LOCKOUT_UNTIL = "pin_lockout_until"
     }
 }

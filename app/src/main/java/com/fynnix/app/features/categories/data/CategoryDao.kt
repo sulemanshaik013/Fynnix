@@ -18,6 +18,21 @@ interface CategoryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(categories: List<CategoryEntity>)
 
+    /**
+     * Seeds the sentinel "Uncategorized" row with its literal id (0) via raw SQL.
+     * Room's typed @Insert path can't be used for this: with
+     * `@PrimaryKey(autoGenerate = true)` on a non-null Long, Room treats an explicit
+     * id of exactly 0 as "unset" and lets SQLite auto-assign a different id instead of
+     * inserting 0 literally — silently seeding "Uncategorized" under some other id and
+     * leaving every categoryId=0 reference throughout the app (the documented fallback
+     * for "no category matched") pointing at a row that doesn't exist.
+     */
+    @Query(
+        "INSERT OR IGNORE INTO categories (id, name, icon, colorHex, isDefault, sortOrder) " +
+            "VALUES (0, 'Uncategorized', 'help', '#9E9E9E', 1, 99)"
+    )
+    suspend fun seedUncategorizedCategory()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(category: CategoryEntity): Long
 

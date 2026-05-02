@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.analytics.TimeRanges
 import com.fynnix.app.core.utils.PeriodType
+import com.fynnix.app.core.utils.launchCatching
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.data.BudgetEntity
 import com.fynnix.app.features.categories.data.CategoryDao
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class BudgetUiModel(
@@ -71,7 +71,7 @@ class BudgetViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateBudget(categoryId: Long, newLimit: Double) {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             val existing = budgetDao.getBudgetByCategoryId(categoryId)
             if (existing != null) {
                 budgetDao.updateBudget(existing.copy(limitAmount = newLimit))
@@ -84,11 +84,11 @@ class BudgetViewModel @Inject constructor(
     }
 
     fun addCategory(name: String) {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             val trimmed = name.trim()
-            if (trimmed.isBlank()) return@launch
+            if (trimmed.isBlank()) return@launchCatching
             val existing = categoryDao.findIdByName(trimmed)
-            if (existing != null) return@launch
+            if (existing != null) return@launchCatching
             val nextSort = (categoryDao.getAll().maxOfOrNull { it.sortOrder } ?: 0) + 1
             categoryDao.insert(
                 CategoryEntity(
@@ -103,10 +103,14 @@ class BudgetViewModel @Inject constructor(
     }
 
     fun removeCategory(id: Long) {
-        viewModelScope.launch {
-            val cat = categoryDao.getCategoryById(id) ?: return@launch
-            if (cat.isDefault) return@launch
+        viewModelScope.launchCatching(TAG) {
+            val cat = categoryDao.getCategoryById(id) ?: return@launchCatching
+            if (cat.isDefault) return@launchCatching
             categoryDao.deleteCategory(cat)
         }
+    }
+
+    private companion object {
+        const val TAG = "BudgetViewModel"
     }
 }

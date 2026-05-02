@@ -10,6 +10,7 @@ import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
 import com.fynnix.app.core.utils.TransactionSource
 import com.fynnix.app.core.utils.TransactionType
+import com.fynnix.app.core.utils.launchCatching
 import com.fynnix.app.features.transactions.data.Transaction
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionRepository
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
@@ -140,7 +140,7 @@ class TransactionsViewModel @Inject constructor(
         type: TransactionType,
         note: String?,
     ) {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             transactionRepository.insertTransaction(
                 Transaction(
                     id             = UUID.randomUUID().toString(),
@@ -173,8 +173,8 @@ class TransactionsViewModel @Inject constructor(
         type: TransactionType,
         note: String?,
     ) {
-        viewModelScope.launch {
-            val existing = transactionDao.getById(id) ?: return@launch
+        viewModelScope.launchCatching(TAG) {
+            val existing = transactionDao.getById(id) ?: return@launchCatching
             transactionDao.update(
                 existing.copy(
                     amount      = amount,
@@ -190,10 +190,14 @@ class TransactionsViewModel @Inject constructor(
     }
 
     fun deleteTransaction(id: String) {
-        viewModelScope.launch { transactionRepository.softDelete(id) }
+        viewModelScope.launchCatching(TAG) { transactionRepository.softDelete(id) }
     }
 
     fun markReviewed(id: String) {
-        viewModelScope.launch { transactionRepository.markReviewed(id) }
+        viewModelScope.launchCatching(TAG) { transactionRepository.markReviewed(id) }
+    }
+
+    private companion object {
+        const val TAG = "TransactionsViewModel"
     }
 }

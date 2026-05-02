@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.utils.PeriodType
+import com.fynnix.app.core.utils.launchCatching
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.data.BudgetEntity
 import com.fynnix.app.features.categories.data.CategoryDao
@@ -13,7 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -31,7 +31,7 @@ class OnboardingViewModel @Inject constructor(
     val budgetEdits: StateFlow<Map<Long, Double>> = _budgetEdits.asStateFlow()
 
     fun loadCategories() {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             val cats = categoryDao.getAll().filter { it.id != 0L }
             _categories.value = cats
 
@@ -49,7 +49,7 @@ class OnboardingViewModel @Inject constructor(
     /** Persist user profile + edited budgets. Does NOT mark onboarding complete —
      *  AllSetViewModel does that after the SMS sync run. */
     fun saveData(name: String, income: Double) {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             userPreferences.saveUserName(name)
             userPreferences.saveUserIncome(income)
 
@@ -68,5 +68,9 @@ class OnboardingViewModel @Inject constructor(
 
     fun updateBudget(id: Long, newBudget: Double) {
         _budgetEdits.update { it + (id to newBudget) }
+    }
+
+    private companion object {
+        const val TAG = "OnboardingViewModel"
     }
 }

@@ -62,6 +62,24 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
 
 val MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        // The "Uncategorized" sentinel category (id 0) was never reliably seeded prior
+        // to this migration: Room's typed insert path treats an explicit id of exactly
+        // 0 on an autoGenerate primary key as "unset" and lets SQLite assign a different
+        // id instead, so every categoryId=0 reference throughout the app has actually
+        // been pointing at a row that doesn't exist. Ensure it exists via raw SQL (which
+        // respects the literal value) before the FK constraint added below can enforce
+        // that categoryId must reference a real row.
+        db.execSQL(
+            "INSERT OR IGNORE INTO categories (id, name, icon, colorHex, isDefault, sortOrder) " +
+                "VALUES (0, 'Uncategorized', 'help', '#9E9E9E', 1, 99)"
+        )
+        // Re-point any transaction whose categoryId/accountId doesn't reference an
+        // existing row (a latent consequence of the bug above, or of a category/account
+        // deleted before FK cascade behavior existed) so the FK-constrained table below
+        // can be populated without failing on pre-existing inconsistent data.
+        db.execSQL("UPDATE transactions SET categoryId = 0 WHERE categoryId NOT IN (SELECT id FROM categories)")
+        db.execSQL("UPDATE transactions SET accountId = NULL WHERE accountId IS NOT NULL AND accountId NOT IN (SELECT id FROM accounts)")
+
         // Remove pre-existing duplicate rows before the unique index can be created —
         // a non-unique dedupKey index let a TOCTOU race between concurrent sync paths
         // insert two rows for the same real transaction. Keep the earliest-inserted

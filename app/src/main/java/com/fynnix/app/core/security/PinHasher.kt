@@ -1,5 +1,6 @@
 package com.fynnix.app.core.security
 
+import com.fynnix.app.core.utils.AppConstants
 import java.security.SecureRandom
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
@@ -10,14 +11,12 @@ import javax.crypto.spec.PBEKeySpec
  * Constant-time compare on verification to prevent timing oracles.
  */
 object PinHasher {
-    private const val ITERATIONS = 200_000
-    private const val KEY_LENGTH_BITS = 256
     private const val ALGO = "PBKDF2WithHmacSHA256"
 
-    fun newSalt(): ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }
+    fun newSalt(): ByteArray = ByteArray(AppConstants.PIN_SALT_BYTES).also { SecureRandom().nextBytes(it) }
 
     fun hash(pin: String, salt: ByteArray): ByteArray {
-        val spec = PBEKeySpec(pin.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS)
+        val spec = PBEKeySpec(pin.toCharArray(), salt, AppConstants.PIN_PBKDF2_ITERATIONS, AppConstants.PIN_HASH_BITS)
         return try {
             SecretKeyFactory.getInstance(ALGO).generateSecret(spec).encoded
         } finally {

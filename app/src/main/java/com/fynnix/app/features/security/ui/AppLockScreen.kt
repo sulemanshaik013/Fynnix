@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fynnix.app.core.ui.theme.Primary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -33,10 +35,23 @@ import java.util.concurrent.Executors
 fun AppLockScreen(onUnlocked: () -> Unit) {
     val viewModel: SecurityViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
+    val scope = rememberCoroutineScope()
 
     var pinInput by remember { mutableStateOf("") }
-    var pinError by remember { mutableStateOf(false) }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    var lockedOutForMs by remember { mutableStateOf(0L) }
     val activity = LocalActivity.current as? FragmentActivity
+
+    // Live countdown while locked out, so "Try again in Ns" stays accurate without
+    // requiring another failed attempt to refresh it.
+    LaunchedEffect(lockedOutForMs) {
+        var remaining = lockedOutForMs
+        while (remaining > 0) {
+            delay(1_000L)
+            remaining -= 1_000L
+            lockedOutForMs = remaining.coerceAtLeast(0L)
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (state.method == LockMethod.Biometric || state.method == LockMethod.Device) {
@@ -77,35 +92,52 @@ fun AppLockScreen(onUnlocked: () -> Unit) {
 
             when (state.method) {
                 LockMethod.Pin -> {
+                    val isLockedOut = lockedOutForMs > 0
                     OutlinedTextField(
                         value = pinInput,
                         onValueChange = {
                             if (it.length <= 6 && it.all(Char::isDigit)) {
                                 pinInput = it
-                                pinError = false
-                                if (it.length >= 4 && viewModel.verifyPin(it)) {
-                                    onUnlocked()
-                                }
+                                pinError = null
                             }
                         },
                         label = { Text("PIN") },
                         singleLine = true,
-                        isError = pinError,
+                        enabled = !isLockedOut,
+                        isError = pinError != null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         visualTransformation = PasswordVisualTransformation(),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = {
-                            if (!viewModel.verifyPin(pinInput)) {
-                                pinError = true; pinInput = ""
-                            } else onUnlocked()
+                            scope.launch {
+                                when (val result = viewModel.verifyPin(pinInput)) {
+                                    is PinVerifyResult.Success -> onUnlocked()
+                                    is PinVerifyResult.WrongPin -> {
+                                        pinError = "Wrong PIN — ${result.attemptsRemaining} attempt${if (result.attemptsRemaining == 1) "" else "s"} left"
+                                        pinInput = ""
+                                    }
+                                    is PinVerifyResult.LockedOut -> {
+                                        pinError = null
+                                        pinInput = ""
+                                        lockedOutForMs = result.remainingMs
+                                    }
+                                }
+                            }
                         },
+                        enabled = !isLockedOut && pinInput.length in 4..6,
                         modifier = Modifier.fillMaxWidth().height(54.dp),
                         shape = RoundedCornerShape(28.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Primary),
                     ) { Text("Unlock", color = Color.Black, fontWeight = FontWeight.Bold) }
-                    if (pinError) Text("Wrong PIN", color = MaterialTheme.colorScheme.error)
+                    when {
+                        isLockedOut -> Text(
+                            "Too many attempts — try again in ${(lockedOutForMs / 1000).coerceAtLeast(1)}s",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        pinError != null -> Text(pinError!!, color = MaterialTheme.colorScheme.error)
+                    }
                 }
                 LockMethod.Biometric, LockMethod.Device -> {
                     Button(

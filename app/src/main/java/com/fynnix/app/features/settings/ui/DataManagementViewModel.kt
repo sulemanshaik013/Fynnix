@@ -67,7 +67,13 @@ class DataManagementViewModel @Inject constructor(
     fun importCsv(uri: Uri) {
         viewModelScope.launch {
             runCatching { csv.importFrom(uri) }
-                .onSuccess { _status.value = "Imported $it transactions" }
+                .onSuccess { result ->
+                    _status.value = buildString {
+                        append("Imported ${result.imported} transaction${if (result.imported == 1) "" else "s"}")
+                        if (result.skippedExisting > 0) append(", skipped ${result.skippedExisting} already in your history")
+                        if (result.invalid > 0) append(", ${result.invalid} row${if (result.invalid == 1) "" else "s"} could not be read")
+                    }
+                }
                 .onFailure { _status.value = "Import failed: ${it.message}" }
         }
     }

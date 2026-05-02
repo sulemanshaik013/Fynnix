@@ -96,8 +96,9 @@ class SenderTrustClassifier @Inject constructor() {
 
     private val spamHints = setOf("LOAN", "OFFER", "REWARD", "WIN", "FREE", "BONUS")
 
-    fun classify(rawSender: String): TrustLevel {
-        val core = stripDltPrefix(rawSender).uppercase()
+    /** [sender] must already be country-adapted (e.g. via [com.fynnix.app.core.parser.country.CountryAdapter]) — this does not re-derive DLT-prefix stripping itself. */
+    fun classify(sender: String): TrustLevel {
+        val core = sender.trim().uppercase()
         return when {
             verifiedBanks.any   { core.contains(it) } -> TrustLevel.VERIFIED_BANK
             verifiedUpi.any     { core.contains(it) } -> TrustLevel.VERIFIED_UPI
@@ -109,14 +110,4 @@ class SenderTrustClassifier @Inject constructor() {
         }
     }
 
-    fun isSpam(rawSender: String): Boolean = classify(rawSender) == TrustLevel.SPAM
-
-    /** Strip optional 2-char telco prefix like `XX-` or `XX_`. */
-    private fun stripDltPrefix(sender: String): String {
-        val trimmed = sender.trim()
-        if (trimmed.length > 3 && (trimmed[2] == '-' || trimmed[2] == '_')) {
-            return trimmed.substring(3)
-        }
-        return trimmed
-    }
 }

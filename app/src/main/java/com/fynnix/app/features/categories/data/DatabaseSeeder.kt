@@ -5,7 +5,7 @@ import com.fynnix.app.core.utils.RuleCondition
 import com.fynnix.app.core.utils.RuleField
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.data.BudgetEntity
-import com.fynnix.app.features.categories.domain.ChainedCategoryClassifier
+import com.fynnix.app.features.categories.domain.CategoryKeywords
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,9 +27,9 @@ class DatabaseSeeder @Inject constructor(
                 CategoryEntity(id = 5L, name = "Entertainment", icon = "movie",            colorHex = "#E91E63", isDefault = true, sortOrder = 5),
                 CategoryEntity(id = 6L, name = "Health",        icon = "medical_services", colorHex = "#F44336", isDefault = true, sortOrder = 6),
                 CategoryEntity(id = 7L, name = "Income",        icon = "payments",         colorHex = "#00C853", isDefault = true, sortOrder = 7),
-                CategoryEntity(id = 0L, name = "Uncategorized", icon = "help",             colorHex = "#9E9E9E", isDefault = true, sortOrder = 99),
             )
             categoryDao.insertAll(categories)
+            categoryDao.seedUncategorizedCategory()
 
             val defaultBudgets = mapOf(
                 1L to 8_000.0,
@@ -53,20 +53,14 @@ class DatabaseSeeder @Inject constructor(
     }
 
     private suspend fun seedDefaultRules() {
-        // (categoryId, keywords, groupPriority base)
-        data class RuleGroup(val categoryId: Long, val keywords: List<String>, val base: Int)
-
-        val groups = listOf(
-            RuleGroup(1L, ChainedCategoryClassifier.FOOD,          100),
-            RuleGroup(2L, ChainedCategoryClassifier.TRANSPORT,     200),
-            RuleGroup(3L, ChainedCategoryClassifier.SHOPPING,      300),
-            RuleGroup(4L, ChainedCategoryClassifier.BILLS,         400),
-            RuleGroup(5L, ChainedCategoryClassifier.ENTERTAINMENT, 500),
-            RuleGroup(6L, ChainedCategoryClassifier.HEALTH,        600),
-            RuleGroup(7L, ChainedCategoryClassifier.INCOME,        700),
+        val categoryIdByName = mapOf(
+            "Food" to 1L, "Transport" to 2L, "Shopping" to 3L, "Bills" to 4L,
+            "Entertainment" to 5L, "Health" to 6L, "Income" to 7L,
         )
 
-        groups.forEach { group ->
+        CategoryKeywords.GROUPS.forEachIndexed { groupIdx, group ->
+            val categoryId = categoryIdByName[group.categoryName] ?: return@forEachIndexed
+            val base = (groupIdx + 1) * 100
             group.keywords.forEachIndexed { idx, keyword ->
                 ruleDao.insertRule(
                     AutoCategoriseRule(
@@ -74,8 +68,8 @@ class DatabaseSeeder @Inject constructor(
                         field      = RuleField.MERCHANT,
                         condition  = RuleCondition.CONTAINS,
                         value      = keyword,
-                        categoryId = group.categoryId,
-                        priority   = group.base + (idx * 10),
+                        categoryId = categoryId,
+                        priority   = base + (idx * 10),
                     )
                 )
             }

@@ -1,6 +1,4 @@
 plugins {
-//    alias(libs.plugins.android.application)
-//    alias(libs.plugins.kotlin.android)
     id("com.android.application")
     kotlin("android")
     alias(libs.plugins.kotlin.compose)
@@ -85,19 +83,18 @@ dependencies {
     implementation(libs.sqlcipher)
 
     // WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
-    implementation("androidx.hilt:hilt-work:1.2.0")
-    ksp("androidx.hilt:hilt-compiler:1.2.0")
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     // Biometric
-    implementation("androidx.biometric:biometric:1.1.0")
+    implementation(libs.androidx.biometric)
 
     // EncryptedSharedPreferences for storing the SQLCipher passphrase
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation(libs.androidx.security.crypto)
 
     // sqlite-android required by net.zetetic SQLCipher 4.x
-    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-//    kapt ("androidx.hilt:hilt-compiler:1.0.0")
+    implementation(libs.androidx.sqlite.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

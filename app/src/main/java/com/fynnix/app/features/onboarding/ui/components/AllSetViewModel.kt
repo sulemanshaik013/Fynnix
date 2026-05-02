@@ -5,9 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.ProcessingProgress
 import com.fynnix.app.core.sms.SmsProcessingManager
+import com.fynnix.app.core.utils.launchCatching
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -19,8 +19,12 @@ class AllSetViewModel @Inject constructor(
         SmsProcessingManager.processingProgress
 
     fun completeOnboarding() {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             userPreferences.setOnboardingCompleted(true)
         }
+    }
+
+    private companion object {
+        const val TAG = "AllSetViewModel"
     }
 }

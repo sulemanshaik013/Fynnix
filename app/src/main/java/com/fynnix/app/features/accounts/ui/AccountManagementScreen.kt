@@ -30,13 +30,13 @@ import com.fynnix.app.core.database.AppDatabase
 import com.fynnix.app.core.ui.theme.Primary
 import com.fynnix.app.core.utils.AccountSource
 import com.fynnix.app.core.utils.AccountType
+import com.fynnix.app.core.utils.launchCatching
 import com.fynnix.app.features.accounts.data.AccountDao
 import com.fynnix.app.features.transactions.data.TransactionDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -92,7 +92,7 @@ class AccountManagementViewModel @Inject constructor(
         }
 
     fun mergeInto(keepId: Long, discardId: Long) {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             // Reassign-then-delete must be atomic: a crash between the two steps would
             // otherwise leave transactions pointing at an account id that's already gone.
             database.withTransaction {
@@ -104,7 +104,7 @@ class AccountManagementViewModel @Inject constructor(
 
     /** Auto-merge: for each duplicate group keep the account with the "best" bank name. */
     fun mergeAllDuplicates() {
-        viewModelScope.launch {
+        viewModelScope.launchCatching(TAG) {
             val current = accounts.value
             val groups = current
                 .filter { it.lastFourDigits?.isNotBlank() == true }
@@ -127,6 +127,10 @@ class AccountManagementViewModel @Inject constructor(
     private fun rankBankName(name: String): Int = when {
         name == "Other" || name == "UPI" || name == "Wallet" -> 0
         else -> 1
+    }
+
+    private companion object {
+        const val TAG = "AccountManagementVM"
     }
 }
 

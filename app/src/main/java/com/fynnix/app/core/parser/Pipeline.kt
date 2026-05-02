@@ -53,8 +53,9 @@ class Pipeline @Inject constructor(
         // 3. Country adapter — strip DLT prefix etc.
         val canonicalSender = countryAdapter.adaptSender(input.sender, input.simCountry)
 
-        // 4. Sender trust
-        val trust = senderTrust.classify(input.sender)
+        // 4. Sender trust — classify the already country-adapted sender so trust
+        // classification and handler dispatch always agree on the same canonical form.
+        val trust = senderTrust.classify(canonicalSender)
         if (trust == TrustLevel.SPAM) return ParseResult.Rejected(RejectionReason.SPAM_SENDER)
 
         // 5. Intent

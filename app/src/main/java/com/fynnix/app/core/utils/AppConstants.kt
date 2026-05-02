@@ -6,6 +6,12 @@ object AppConstants {
     /** Minimum confidence score (0–100) for a draft to be accepted as a transaction. */
     const val CONFIDENCE_THRESHOLD = 55
 
+    // 1 crore was too tight — property/business NEFT/RTGS transfers legitimately exceed
+    // it, and the whole transaction was dropped, not just the amount. 100 crore still
+    // guards against garbled OCR/parsing noise while covering real high-value transfers.
+    /** Sanity ceiling (INR) for an extracted amount; larger values are rejected as noise. */
+    const val AMOUNT_MAX_INR = 1.0e9
+
     // ---- Deduplication ----------------------------------------------
     const val DAY_MILLIS = 24L * 60 * 60 * 1_000L
 
