@@ -309,8 +309,7 @@ If `processDebugResources` fails with `R.jar` locked, close Android Studio (it h
 | Notifications toggle is "Soon" | No alert scheduler yet | UI honestly labels it under-development |
 | Bank-statement PDF / XLSX import | Not implemented | UI shows "Soon" badge |
 | EMI / loan / mutual-fund / salary-specific tagging | Currently lumped via merchant keyword | Roadmap |
-| `MerchantCategoryOverride` table unused | Not yet wired into `categorize()` | Quick win — see §11 |
-| Scan history beyond Settings → Data Management | No view of rejected SMS | Roadmap (failure ledger) |
+| `MerchantCategoryOverride` table only preseeded with user-added overrides | Wired into `categorize()` (highest-precedence layer) but not preseeded with common merchants | Preseed top ~200 Indian merchants — see §11 |
 | No automated test suite | Zero unit / instrumentation tests | Roadmap (CI gating) |
 | Foreground service for very large bulk syncs | WorkManager only | Add when needed for 50k+ SMS users |
 
@@ -329,12 +328,11 @@ Closed beta on supported banks: deployable. Open Play Store release: pending Goo
 ## 11. Roadmap (in order)
 
 ### Near term (next 1–2 weeks of work)
-1. Wire `MerchantCategoryOverride` table into `categorize()` — preseed top ~200 Indian merchants.
+1. Preseed `MerchantCategoryOverride` with the top ~200 Indian merchants (the table and its wiring into `categorize()` already exist).
 2. Foreign currency support — add `currency` capture to `AmountExtractor`, plumb USD/EUR/GBP through `TransactionDraft.currency`.
-3. Failure ledger — populate the existing `failed_transactions` table for every rejected SMS with reason + raw body, expose a "Review rejected" screen.
-4. Real notification scheduler — budget threshold alerts and subscription due-date reminders. Replace the "Soon" placeholder.
-5. Adversarial test suite — unit tests for `Pipeline.process(...)` over the 30+ scenarios in the audit (HDFC_DEBIT_UPI, ICICI_CARD_FOREX, SBI_BALANCE_FIRST, AXIS_DECLINED, REVERSAL, UPI_DOUBLE, CC_BILL_TRANSFER, SENDER_NO_DASH, …).
-6. Permission rationale dialog when `READ_SMS` is permanently denied — link to system Settings.
+3. Real notification scheduler — budget threshold alerts and subscription due-date reminders. Replace the "Soon" placeholder.
+4. Adversarial test suite — unit tests for `Pipeline.process(...)` over the 30+ scenarios in the audit (HDFC_DEBIT_UPI, ICICI_CARD_FOREX, SBI_BALANCE_FIRST, AXIS_DECLINED, REVERSAL, UPI_DOUBLE, CC_BILL_TRANSFER, SENDER_NO_DASH, …).
+5. Permission rationale dialog when `READ_SMS` is permanently denied — link to system Settings.
 
 ### Medium term
 7. Multilingual SMS — Hindi + Tamil + Telugu keyword tables for `IntentClassifier`. Devanagari-aware merchant capture in `MerchantExtractor`.
