@@ -51,10 +51,4 @@ class Converters {
 
     @TypeConverter
     fun toPeriodType(value: String) = PeriodType.valueOf(value)
-
-//    @TypeConverter
-//    fun fromMessageSource(value: String) = value
-//
-//    @TypeConverter
-//    fun toMessageSource(value: String) = value
 }

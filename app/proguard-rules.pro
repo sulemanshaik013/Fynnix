@@ -76,4 +76,6 @@
 # Keep all Entity / DAO / Repository classes by package.
 -keep class com.fynnix.app.features.**.data.** { *; }
 -keep class com.fynnix.app.core.database.** { *; }
--keep class com.fynnix.app.core.security.** { *; }
+# core.security is intentionally NOT kept: PinHasher/SecureKeyVault use no reflection
+# and aren't Room entities, so obfuscating them is free — keeping them fully intact
+# only makes the crypto implementation easier to locate in a decompiled release APK.

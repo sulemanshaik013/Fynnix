@@ -6,13 +6,9 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AutoCategoriseRuleDao {
-    @Query("SELECT * FROM auto_categorise_rules ORDER BY priority ASC")
-    fun getAllRules(): Flow<List<AutoCategoriseRule>>
-
     @Query("SELECT * FROM auto_categorise_rules ORDER BY priority ASC")
     suspend fun getAllList(): List<AutoCategoriseRule>
 

@@ -71,9 +71,11 @@ class HomeViewModel @Inject constructor(
 
     // ---- individual data streams ----------------------------------------
 
-    private val transactionsFlow = repository.getTransactions()
+    // Query only the rows actually needed for the recent-transactions card instead of
+    // loading the entire transaction history just to slice the first 8 client-side.
+    private val transactionsFlow = transactionDao.getRecent(8)
         .combine(repository.categoryMetaFlow) { list, meta ->
-            list.take(8).map { tx ->
+            list.map { tx ->
                 val m = meta[tx.categoryId] ?: Triple("Uncategorized", Icons.Default.SwapHoriz, Color.Gray)
                 TransactionUiModel(
                     id            = tx.id,
@@ -131,14 +133,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    // Kept separate from monthTick: recomputing subscriptions only depends on the
+    // recurring-candidate query's actual result changing, not on the minute-by-minute
+    // tick that only exists to keep the reporting window fresh across day/month
+    // boundaries — combining it inside the ticking flatMapLatest below would redo this
+    // (multiple sequential DB queries per merchant) every 60 seconds regardless of
+    // whether any transaction data changed.
+    private val subscriptionsFlow = transactionDao.recurringCandidatesFlow()
+        .map { rows -> subscriptionDetector.buildFromCandidates(rows.map { it.merchant }) }
+
     private val insightsFlow = monthTick.flatMapLatest { range ->
         combine(
             transactionDao.getByDateRange(range.start, range.end),
             categoryDao.getAllFlow(),
-            transactionDao.recurringCandidatesFlow(),
-        ) { monthTx, categories, candidateRows ->
-            val merchants = candidateRows.map { it.merchant }
-            val subs      = subscriptionDetector.buildFromCandidates(merchants)
+            subscriptionsFlow,
+        ) { monthTx, categories, subs ->
             insightGenerator.generate(
                 monthTx              = monthTx,
                 categoryNames        = categories.associate { it.id to it.name },

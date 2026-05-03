@@ -64,7 +64,11 @@ fun SpendCardPager(
 
 @Composable
 fun SpendCard(data: SpendCardData) {
-    val income = data.incomeAmount ?: 1.0 // Prevent division by zero
+    // Guard against both an absent income and a genuine 0.0 (the pre-onboarding default
+    // from UserPreferences.getUserIncome()) — either would otherwise divide by zero and
+    // produce NaN/Infinity, which coerceIn passes through unchanged since NaN comparisons
+    // are always false.
+    val income = data.incomeAmount?.takeIf { it > 0.0 } ?: 1.0
     val percentage = (data.debitAmount / income).toFloat().coerceIn(0f, 1f)
     val progressColor = ColorUtils.getProgressColor(percentage)
 

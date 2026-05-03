@@ -43,6 +43,10 @@ class UserPreferences @Inject constructor(
         private const val KEY_LOCK_METHOD         = "lock_method"
     }
 
+    /** True once [openPrefs] has fallen back to plaintext storage this session. */
+    var usingInsecureFallback: Boolean = false
+        private set
+
     private val prefs: SharedPreferences by lazy { openPrefs() }
 
     private fun openPrefs(): SharedPreferences {
@@ -59,6 +63,7 @@ class UserPreferences @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Cannot open encrypted prefs — falling back to plaintext", e)
+            usingInsecureFallback = true
             context.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
         }
     }

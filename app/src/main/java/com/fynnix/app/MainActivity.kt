@@ -41,7 +41,6 @@ import com.fynnix.app.features.onboarding.ui.AllSetScreen
 import com.fynnix.app.features.onboarding.ui.WelcomeScreen
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -61,7 +60,11 @@ import com.fynnix.app.features.subscriptions.ui.SubscriptionsScreen
 import com.fynnix.app.features.transactions.ui.TransactionsScreen
 import com.fynnix.app.navigation.Screen
 import com.fynnix.app.navigation.bottomNavItems
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -84,6 +87,12 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Block screenshots and hide this activity's content from the recent-apps
+        // thumbnail — this screen can show real transaction amounts and merchants.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+        )
         enableEdgeToEdge()
         setContent {
             FynnixTheme {
@@ -96,26 +105,40 @@ class MainActivity : FragmentActivity() {
     }
 }
 
+/**
+ * Holds unlock state in a ViewModel rather than `remember` so it survives a
+ * configuration change (rotation) instead of forcing the user to re-authenticate.
+ * A ViewModel is still discarded on real process death, so a fully killed-and-
+ * recreated process correctly starts locked again — only in-process recreation
+ * (rotation) should skip re-prompting.
+ */
+@HiltViewModel
+class AppLockStateViewModel @Inject constructor(
+    userPreferences: UserPreferences,
+) : ViewModel() {
+    var unlocked by mutableStateOf(!userPreferences.isAppLockEnabled())
+    var lastStop by mutableStateOf(0L)
+}
+
 @Composable
 fun AppRoot(
     smsPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String>,
     userPreferences: UserPreferences,
 ) {
-    var unlocked by remember { mutableStateOf(!userPreferences.isAppLockEnabled()) }
+    val lockState: AppLockStateViewModel = hiltViewModel()
 
     // Re-lock when the activity goes to background and comes back > BACKGROUND_RELOCK_MS later.
     val lifecycleOwner = LocalLifecycleOwner.current
-    var lastStop by remember { mutableStateOf(0L) }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> lastStop = System.currentTimeMillis()
+                Lifecycle.Event.ON_STOP -> lockState.lastStop = System.currentTimeMillis()
                 Lifecycle.Event.ON_START -> {
                     if (userPreferences.isAppLockEnabled() &&
-                        lastStop > 0 &&
-                        System.currentTimeMillis() - lastStop > BACKGROUND_RELOCK_MS
+                        lockState.lastStop > 0 &&
+                        System.currentTimeMillis() - lockState.lastStop > BACKGROUND_RELOCK_MS
                     ) {
-                        unlocked = false
+                        lockState.unlocked = false
                     }
                 }
                 else -> Unit
@@ -125,8 +148,8 @@ fun AppRoot(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    if (!unlocked) {
-        AppLockScreen(onUnlocked = { unlocked = true })
+    if (!lockState.unlocked) {
+        AppLockScreen(onUnlocked = { lockState.unlocked = true })
     } else {
         MainScreen(
             smsPermissionLauncher = smsPermissionLauncher,

@@ -39,10 +39,6 @@ class TransactionRepository @Inject constructor(
     suspend fun insertTransaction(transaction: Transaction) =
         transactionDao.insertReplace(transaction.toEntity())
 
-    suspend fun insertTransactions(transactions: List<Transaction>) {
-        transactions.forEach { transactionDao.insertReplace(it.toEntity()) }
-    }
-
     suspend fun update(transaction: Transaction) =
         transactionDao.update(transaction.toEntity())
 

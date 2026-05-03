@@ -91,17 +91,6 @@ class AccountManagementViewModel @Inject constructor(
                 .toList()
         }
 
-    fun mergeInto(keepId: Long, discardId: Long) {
-        viewModelScope.launchCatching(TAG) {
-            // Reassign-then-delete must be atomic: a crash between the two steps would
-            // otherwise leave transactions pointing at an account id that's already gone.
-            database.withTransaction {
-                transactionDao.reassignAccount(discardId, keepId)
-                dao.deleteById(discardId)
-            }
-        }
-    }
-
     /** Auto-merge: for each duplicate group keep the account with the "best" bank name. */
     fun mergeAllDuplicates() {
         viewModelScope.launchCatching(TAG) {

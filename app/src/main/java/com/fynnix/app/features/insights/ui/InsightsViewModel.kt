@@ -118,15 +118,20 @@ class InsightsViewModel @Inject constructor(
         .flatMapLatest { range -> transactionDao.sumDebitsFlow(range.start, range.end) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    // Kept separate from _selectedRange: recomputing subscriptions only depends on the
+    // recurring-candidate query's actual result changing, not on which reporting period
+    // the user has selected — combining it inside the range-driven flatMapLatest below
+    // would redo this (multiple sequential DB queries per merchant) on every filter tap.
+    private val subscriptionsFlow = transactionDao.recurringCandidatesFlow()
+        .map { rows -> subscriptionDetector.buildFromCandidates(rows.map { it.merchant }) }
+
     val insights = _selectedRange
         .flatMapLatest { range ->
             combine(
                 transactionDao.getByDateRange(range.start, range.end),
                 categoryDao.getAllFlow(),
-                transactionDao.recurringCandidatesFlow(),
-            ) { monthTx, categories, candidateRows ->
-                val merchants = candidateRows.map { it.merchant }
-                val subs = subscriptionDetector.buildFromCandidates(merchants)
+                subscriptionsFlow,
+            ) { monthTx, categories, subs ->
                 insightGenerator.generate(
                     monthTx = monthTx,
                     categoryNames = categories.associate { it.id to it.name },

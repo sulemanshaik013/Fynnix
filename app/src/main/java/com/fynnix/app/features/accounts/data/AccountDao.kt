@@ -23,9 +23,6 @@ interface AccountDao {
     )
     suspend fun findByKey(bankName: String, last4: String, type: AccountType): AccountEntity?
 
-    @Query("SELECT COUNT(*) FROM accounts")
-    suspend fun getAccountCount(): Long
-
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(accountEntity: AccountEntity): Long
 
