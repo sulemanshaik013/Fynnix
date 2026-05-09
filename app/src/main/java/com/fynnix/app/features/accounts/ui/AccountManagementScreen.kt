@@ -207,7 +207,7 @@ fun AccountManagementScreen(onBack: () -> Unit) {
                 }
             }
 
-            items(accounts) { acc -> AccountRow(acc) }
+            items(accounts, key = { it.id }) { acc -> AccountRow(acc) }
         }
     }
 

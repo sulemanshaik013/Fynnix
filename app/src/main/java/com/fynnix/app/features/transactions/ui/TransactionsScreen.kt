@@ -612,6 +612,10 @@ private fun formatDisplayDate(ts: Long): String {
     return SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()).format(Date(ts))
 }
 
+// Reused instead of allocating a new SimpleDateFormat per header per recomposition.
+private val dayFormatSameYear = SimpleDateFormat("d MMM", Locale.getDefault())
+private val dayFormatOtherYear = SimpleDateFormat("d MMM yyyy", Locale.getDefault())
+
 /** [dayStart] must be a start-of-day timestamp, as produced by [startOfDay]. */
 private fun formatDateHeader(dayStart: Long): String {
     val now = System.currentTimeMillis()
@@ -621,7 +625,7 @@ private fun formatDateHeader(dayStart: Long): String {
     // same-day-of-year transaction from a prior year is indistinguishable from
     // a recent one and visually collapses into the same group.
     val sameYear = isSameYear(dayStart, now)
-    val dayFormat = SimpleDateFormat(if (sameYear) "d MMM" else "d MMM yyyy", Locale.getDefault())
+    val dayFormat = if (sameYear) dayFormatSameYear else dayFormatOtherYear
     val label = dayFormat.format(Date(dayStart)).uppercase()
     return when (dayStart) {
         today -> "TODAY  ·  $label"

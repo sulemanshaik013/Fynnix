@@ -41,6 +41,7 @@ class UserPreferences @Inject constructor(
         private const val KEY_NOTIFICATIONS       = "notifications_enabled"
         private const val KEY_APP_LOCK            = "app_lock_enabled"
         private const val KEY_LOCK_METHOD         = "lock_method"
+        private const val KEY_SCREENSHOT_BLOCK    = "screenshot_blocking_enabled"
     }
 
     /** True once [openPrefs] has fallen back to plaintext storage this session. */
@@ -102,6 +103,21 @@ class UserPreferences @Inject constructor(
 
     fun getLockMethod(): String = prefs.getString(KEY_LOCK_METHOD, "biometric") ?: "biometric"
     fun setLockMethod(method: String) { prefs.edit().putString(KEY_LOCK_METHOD, method).apply() }
+
+    /** Blocks screenshots and hides app content from the recent-apps thumbnail. On by
+     *  default since this screen can show real transaction data; user-configurable
+     *  because it also blocks the user's own screenshots (e.g. for support requests). */
+    fun isScreenshotBlockingEnabled(): Boolean = prefs.getBoolean(KEY_SCREENSHOT_BLOCK, true)
+    fun setScreenshotBlockingEnabled(v: Boolean) { prefs.edit().putBoolean(KEY_SCREENSHOT_BLOCK, v).apply() }
+
+    fun screenshotBlockingEnabledFlow(): Flow<Boolean> = callbackFlow {
+        trySend(isScreenshotBlockingEnabled())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_SCREENSHOT_BLOCK) trySend(isScreenshotBlockingEnabled())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     fun clearAllData() { prefs.edit().clear().apply() }
 }

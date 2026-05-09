@@ -17,8 +17,16 @@ import javax.inject.Singleton
 class BalanceExtractor @Inject constructor() : Extractor<Double> {
 
     private val patterns = listOf(
-        Regex("(?:avl\\s*bal(?:ance)?|available\\s*bal(?:ance)?|balance\\s*is|bal:)\\s*[:.\\s]*\\s*(?:inr\\s*)?([\\d,]+(?:\\.\\d{1,2})?)"),
-        Regex("(?:avl\\s*lmt|available\\s*limit|credit\\s*limit)\\s*[:.\\s]*\\s*(?:inr\\s*)?([\\d,]+(?:\\.\\d{1,2})?)"),
+        Regex(
+            "(?:avl\\s*bal(?:ance)?|avail\\s*bal(?:ance)?|available\\s*bal(?:ance)?|balance\\s*is|" +
+                "current\\s*balance|clsg\\s*bal(?:ance)?|closing\\s*balance|updated\\s*balance|" +
+                "a/c\\s*bal(?:ance)?|bal(?:ance)?:)\\s*[:.\\s]*\\s*(?:inr\\s*)?([\\d,]+(?:\\.\\d{1,2})?)",
+            RegexOption.IGNORE_CASE,
+        ),
+        Regex(
+            "(?:avl\\s*lmt|available\\s*limit|credit\\s*limit)\\s*[:.\\s]*\\s*(?:inr\\s*)?([\\d,]+(?:\\.\\d{1,2})?)",
+            RegexOption.IGNORE_CASE,
+        ),
     )
 
     override fun extract(text: String): Double? {

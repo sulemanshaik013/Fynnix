@@ -144,7 +144,8 @@ fun TransactionListItem(
     }
 }
 
-private fun formatTransactionAmount(amount: Double): String {
-    val formatter = java.text.DecimalFormat("#,###")
-    return formatter.format(amount)
-}
+// Reused across calls instead of allocating a new DecimalFormat per row per
+// recomposition — this runs once per visible list item on every scroll frame.
+private val amountFormatter = java.text.DecimalFormat("#,###")
+
+private fun formatTransactionAmount(amount: Double): String = amountFormatter.format(amount)

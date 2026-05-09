@@ -29,6 +29,7 @@ data class SecurityUiState(
     val method: LockMethod,
     val biometricAvailable: Boolean,
     val pinSet: Boolean,
+    val screenshotBlockingEnabled: Boolean,
 )
 
 @HiltViewModel
@@ -52,6 +53,11 @@ class SecurityViewModel @Inject constructor(
 
     fun setMethod(method: LockMethod) {
         prefs.setLockMethod(method.key)
+        _state.value = currentState()
+    }
+
+    fun setScreenshotBlockingEnabled(v: Boolean) {
+        prefs.setScreenshotBlockingEnabled(v)
         _state.value = currentState()
     }
 
@@ -119,6 +125,7 @@ class SecurityViewModel @Inject constructor(
             method = LockMethod.values().firstOrNull { it.key == prefs.getLockMethod() } ?: LockMethod.Biometric,
             biometricAvailable = biometricAvailable,
             pinSet = vault.getPinHash() != null,
+            screenshotBlockingEnabled = prefs.isScreenshotBlockingEnabled(),
         )
     }
 

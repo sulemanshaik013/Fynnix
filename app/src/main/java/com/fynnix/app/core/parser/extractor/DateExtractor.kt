@@ -56,10 +56,23 @@ class DateExtractor @Inject constructor() : Extractor<Long> {
             // If the format had no year (e.g. "dd MMM"), SimpleDateFormat defaults to 1970.
             // Detect and re-anchor to current year. If that produces a future date, roll back one year.
             val anchored = anchorToCurrentYearIfMissing(parsed, rule.sdfPattern)
+
+            // A bank transaction is never future-dated. None of these regexes are anchored
+            // to a "this is definitely the transaction date" context the way AmountExtractor
+            // strips balance/account phrases first — an unrelated digit run elsewhere in the
+            // body (a card expiry, an offer's validity window, a reference number that
+            // happens to contain delimiters) can match one of these patterns and produce a
+            // date years away. Skip an implausible match and keep trying the remaining rules
+            // instead of returning it outright; if nothing plausible is found the caller
+            // falls back to the SMS arrival timestamp, which is always correct.
+            if (!isPlausible(anchored)) continue
             return anchored
         }
         return null
     }
+
+    private fun isPlausible(dateMillis: Long): Boolean =
+        dateMillis <= System.currentTimeMillis() + AppConstants.DATE_FUTURE_GRACE_MS
 
     private fun normalise(datePart: String, timePart: String, sdf: String): Triple<String, String, String> {
         // Force date delimiter to space (we standardised regex to allow `-`/`/`/space).

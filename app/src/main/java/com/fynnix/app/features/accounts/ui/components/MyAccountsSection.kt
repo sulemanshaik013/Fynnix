@@ -66,7 +66,7 @@ fun MyAccountsSection(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(accounts) { account ->
+                items(accounts, key = { it.id }) { account ->
                     AccountCard(account)
                 }
             }

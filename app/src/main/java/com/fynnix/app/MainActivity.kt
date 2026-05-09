@@ -87,15 +87,24 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Block screenshots and hide this activity's content from the recent-apps
-        // thumbnail — this screen can show real transaction amounts and merchants.
-        window.setFlags(
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-            android.view.WindowManager.LayoutParams.FLAG_SECURE,
-        )
         enableEdgeToEdge()
         setContent {
             FynnixTheme {
+                // Blocks screenshots and hides app content from the recent-apps thumbnail
+                // — user-toggleable in Settings, so applied reactively rather than once,
+                // fixed, in onCreate.
+                LaunchedEffect(Unit) {
+                    userPrefs.screenshotBlockingEnabledFlow().collect { enabled ->
+                        if (enabled) {
+                            window.setFlags(
+                                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                            )
+                        } else {
+                            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                        }
+                    }
+                }
                 AppRoot(
                     smsPermissionLauncher = smsPermissionLauncher,
                     userPreferences = userPrefs,

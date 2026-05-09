@@ -133,7 +133,7 @@ fun InsightsScreen(onEditAccountsClick: () -> Unit) {
                 )
             }
             
-            items(insights) { insight ->
+            items(insights, key = { it.id }) { insight ->
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     InsightCard(
                         insight = insight, 

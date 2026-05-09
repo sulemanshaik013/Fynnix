@@ -97,23 +97,31 @@ class AccountResolver @Inject constructor(
     }
 
     companion object {
+        // Account identity is keyed on (bankName, last4, type) — these strings MUST match
+        // each bank's InstitutionParser.name exactly (e.g. HDFCBankHandler.name). When a
+        // sender falls through to the generic handler on one message but matches the
+        // specific bank handler on another (a template variant the handler's senderTokens
+        // doesn't cover, a transient parser miss, etc.), a mismatched name here silently
+        // creates a second account row for the same real bank instead of resolving to the
+        // one already on file.
         val SENDER_BANK_MAP: Map<String, String> = mapOf(
-            "HDFCBK" to "HDFC",   "HDFCBN" to "HDFC",
-            "ICICIB" to "ICICI",  "ICICI"  to "ICICI",
+            "HDFCBK" to "HDFC Bank",   "HDFCBN" to "HDFC Bank",
+            "ICICIB" to "ICICI Bank",  "ICICI"  to "ICICI Bank",
             "SBINSG" to "SBI",    "SBIINB" to "SBI",   "SBISMS" to "SBI", "SBIBNK" to "SBI",
-            "AXISBK" to "Axis",   "AXISBN" to "Axis",  "AXIS"   to "Axis",
-            "KOTAKB" to "Kotak",  "KOTAK"  to "Kotak",
+            "AXISBK" to "Axis Bank",   "AXISBN" to "Axis Bank",  "AXIS"   to "Axis Bank",
+            "KOTAKB" to "Kotak Mahindra Bank",  "KOTAK"  to "Kotak Mahindra Bank",
             "INDBNK" to "Indian Bank",
-            "PNBSMS" to "PNB",    "PNBINB" to "PNB",
-            "BOIIND" to "BOI",
+            "PNBSMS" to "Punjab National Bank",    "PNBINB" to "Punjab National Bank",
+            "BOIIND" to "Bank of India",
             "YESBNK" to "Yes Bank",
-            "IDFCBK" to "IDFC",   "IDFC"   to "IDFC",
+            "IDFCBK" to "IDFC First Bank",   "IDFC"   to "IDFC First Bank",
             "FEDBK"  to "Federal Bank",
-            "CANBNK" to "Canara", "CANARA" to "Canara",
+            "CANBNK" to "Canara Bank", "CANARA" to "Canara Bank",
             "BARODM" to "Bank of Baroda",
-            "UNIONB" to "Union Bank",
+            "UNIONB" to "Union Bank of India",
+            "INDUSB" to "IndusInd Bank", "INDUS" to "IndusInd Bank",
             "CSBBNK" to "CSB",
-            "RBLBNK" to "RBL",
+            "RBLBNK" to "RBL Bank",
             "SCBNKI" to "Standard Chartered",
             "PAYTMB" to "Paytm",  "PYTMSM" to "Paytm", "PAYTM" to "Paytm",
             "PHONEPE" to "PhonePe",

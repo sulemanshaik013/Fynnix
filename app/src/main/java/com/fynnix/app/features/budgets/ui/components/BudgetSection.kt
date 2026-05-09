@@ -51,7 +51,7 @@ fun BudgetSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            items(budgets) { budget ->
+            items(budgets, key = { it.categoryName }) { budget ->
                 BudgetCard(budget)
             }
         }

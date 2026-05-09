@@ -20,9 +20,14 @@ import javax.inject.Singleton
 @Singleton
 class AmountExtractor @Inject constructor() : Extractor<Double> {
 
+    // Must stay in sync with BalanceExtractor's own patterns — any balance phrasing that
+    // extractor recognizes but this one doesn't strip first can leak through and get
+    // picked up by the currency-anchored fallback below as if it were the transaction
+    // amount (a balance is typically a different, often much larger, figure).
     private val balancePhrase = Regex(
-        "(?:avl\\s*bal(?:ance)?|available\\s*bal(?:ance)?|" +
-            "balance\\s*is|current\\s*balance|" +
+        "(?:avl\\s*bal(?:ance)?|avail\\s*bal(?:ance)?|available\\s*bal(?:ance)?|bal(?:ance)?:|" +
+            "balance\\s*is|current\\s*balance|clsg\\s*bal(?:ance)?|closing\\s*balance|" +
+            "updated\\s*balance|a/c\\s*bal(?:ance)?|" +
             "avl\\s*lmt|available\\s*limit|credit\\s*limit)" +
             "[^.\\n]*?(?:inr\\s*)?[\\d,]+(?:\\.\\d{1,2})?",
         RegexOption.IGNORE_CASE,

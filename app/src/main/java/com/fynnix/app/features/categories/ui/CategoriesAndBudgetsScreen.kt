@@ -74,7 +74,7 @@ fun CategoriesAndBudgetsScreen(onBack: () -> Unit) {
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(categories) { category ->
+                items(categories, key = { it.id }) { category ->
                     var pendingDelete by remember { mutableStateOf(false) }
                     CategoryBudgetItem(
                         category = category,

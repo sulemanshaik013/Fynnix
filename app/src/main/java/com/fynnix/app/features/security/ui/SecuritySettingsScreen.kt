@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -75,6 +76,35 @@ fun SecuritySettingsScreen(onBack: () -> Unit) {
                     Switch(
                         checked = state.appLockEnabled,
                         onCheckedChange = { viewModel.setAppLockEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Black,
+                            checkedTrackColor = Primary,
+                        ),
+                    )
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Screenshot, contentDescription = null, tint = Primary)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Block Screenshots", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                        Text(
+                            "Hide app content from screenshots and the recent-apps preview",
+                            style = MaterialTheme.typography.bodySmall, color = Color.Gray,
+                        )
+                    }
+                    Switch(
+                        checked = state.screenshotBlockingEnabled,
+                        onCheckedChange = { viewModel.setScreenshotBlockingEnabled(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.Black,
                             checkedTrackColor = Primary,
