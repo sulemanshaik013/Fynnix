@@ -16,6 +16,7 @@ import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import com.fynnix.app.features.transactions.data.FailedTransactionEntity
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionEntity
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -91,7 +92,8 @@ class TransactionIngestionUseCase @Inject constructor(
         draft: TransactionDraft,
         smsHash: String,
     ): IngestionResult {
-        val dedupKey = buildDedupKey(draft)
+        val dateTime = resolveDateTime(draft.date, raw.timestamp)
+        val dedupKey = buildDedupKey(draft, dateTime)
 
         // Resolving-or-creating the account and then inserting a transaction that
         // references it must be one atomic unit: concurrent incremental syncs for two
@@ -105,10 +107,50 @@ class TransactionIngestionUseCase @Inject constructor(
                 return@withTransaction IngestionResult(duplicates = 1)
             }
 
-            val tx = buildTransaction(raw, draft, smsHash, dedupKey)
+            // Layer 2.5: the same real-world movement is often reported by two
+            // different senders — a bank's own SMS and, separately, the UPI app's
+            // courtesy notification for the same debit/credit (or the two legs of a
+            // self-transfer each getting a bank + an app notification). Merchant
+            // text frequently differs between bank and app wording, so the dedupKey
+            // above can miss it. Same amount, same type, within a tight window is
+            // almost certainly the same event reported twice, regardless of which
+            // sender's message was processed first.
+            val nearby = transactionDao.findNearbyByAmountAndType(
+                type = draft.type,
+                amountMin = draft.amount - AMOUNT_EPSILON,
+                amountMax = draft.amount + AMOUNT_EPSILON,
+                start = dateTime - CROSS_SENDER_WINDOW_MS,
+                end = dateTime + CROSS_SENDER_WINDOW_MS,
+            )
+            if (nearby != null && !nearby.isUserEdited) {
+                return@withTransaction IngestionResult(duplicates = 1)
+            }
+
+            val tx = buildTransaction(raw, draft, smsHash, dedupKey, dateTime)
             val rowId = transactionDao.insertIgnore(tx)
             if (rowId > 0) IngestionResult(saved = 1) else IngestionResult(duplicates = 1)
         }
+    }
+
+    /**
+     * When the extractor found a date but no time, SimpleDateFormat defaults the
+     * time-of-day to midnight — if that parsed date is the same calendar day the SMS
+     * actually arrived, splice in the real arrival time-of-day instead of showing
+     * 00:00. A different day with no time info stays at midnight for that day; there's
+     * no better time to show.
+     */
+    private fun resolveDateTime(draftDate: Long, receivedAt: Long): Long {
+        if (draftDate <= 0) return receivedAt
+        val draftCal = Calendar.getInstance().apply { timeInMillis = draftDate }
+        val isMidnight = draftCal.get(Calendar.HOUR_OF_DAY) == 0 &&
+            draftCal.get(Calendar.MINUTE) == 0 &&
+            draftCal.get(Calendar.SECOND) == 0
+        if (!isMidnight) return draftDate
+
+        val receivedCal = Calendar.getInstance().apply { timeInMillis = receivedAt }
+        val sameDay = draftCal.get(Calendar.YEAR) == receivedCal.get(Calendar.YEAR) &&
+            draftCal.get(Calendar.DAY_OF_YEAR) == receivedCal.get(Calendar.DAY_OF_YEAR)
+        return if (sameDay) receivedAt else draftDate
     }
 
     private suspend fun handleRejection(
@@ -135,6 +177,7 @@ class TransactionIngestionUseCase @Inject constructor(
         draft: TransactionDraft,
         smsHash: String,
         dedupKey: String,
+        dateTime: Long,
     ): TransactionEntity {
         val accountId = accountResolver.resolve(draft, raw.body.lowercase(), raw.sender)
         return TransactionEntity(
@@ -150,7 +193,7 @@ class TransactionIngestionUseCase @Inject constructor(
             merchant          = draft.merchant,
             categoryId        = categoryClassifier.classify(draft.merchant, draft.amount),
             accountId         = accountId.takeIf { it > 0 },
-            dateTime          = if (draft.date > 0) draft.date else raw.timestamp,
+            dateTime          = dateTime,
             source            = TransactionSource.SMS,
             smsReference      = draft.reference,
             rawMessage        = raw.body,
@@ -161,12 +204,12 @@ class TransactionIngestionUseCase @Inject constructor(
         )
     }
 
-    private fun buildDedupKey(draft: TransactionDraft): String {
+    private fun buildDedupKey(draft: TransactionDraft, dateTime: Long): String {
         // Round rather than truncate: binary floating-point error can put amount*100
         // just under the intended integer (e.g. 19.99*100 == 1998.9999999999998),
         // which truncation would misread as 1998 paise instead of 1999.
         val amountCents  = Math.round(draft.amount * 100)
-        val dayBucket    = (draft.date / DAY_MILLIS).toString()
+        val dayBucket    = (dateTime / DAY_MILLIS).toString()
         val merchantNorm = draft.merchant.lowercase()
             .replace(Regex("[^a-z0-9]"), "")
             .take(24)
@@ -189,5 +232,7 @@ class TransactionIngestionUseCase @Inject constructor(
     private companion object {
         const val TAG = "TransactionIngestion"
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
+        const val AMOUNT_EPSILON = 0.01
+        const val CROSS_SENDER_WINDOW_MS = 3L * 60 * 1000
     }
 }

@@ -1,6 +1,7 @@
 package com.fynnix.app.features.transactions.data
 
 import androidx.room.*
+import com.fynnix.app.core.utils.TransactionType
 import kotlinx.coroutines.flow.Flow
 
 data class CategorySpendRow(
@@ -46,6 +47,19 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE dedupKey = :key AND deletedAt IS NULL LIMIT 1")
     suspend fun findByDedupKey(key: String): TransactionEntity?
+
+    @Query(
+        "SELECT * FROM transactions WHERE type = :type AND deletedAt IS NULL " +
+            "AND amount BETWEEN :amountMin AND :amountMax " +
+            "AND dateTime BETWEEN :start AND :end LIMIT 1"
+    )
+    suspend fun findNearbyByAmountAndType(
+        type: TransactionType,
+        amountMin: Double,
+        amountMax: Double,
+        start: Long,
+        end: Long,
+    ): TransactionEntity?
 
     // ---- Streaming queries (all filter out soft-deleted rows) ----
 
