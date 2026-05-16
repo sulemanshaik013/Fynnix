@@ -83,6 +83,13 @@ interface TransactionDao {
     fun sumDebitsFlow(start: Long, end: Long): Flow<Double>
 
     @Query(
+        "SELECT IFNULL(SUM(amount),0) FROM transactions " +
+            "WHERE type = 'CREDIT' AND isExcluded = 0 AND deletedAt IS NULL " +
+            "AND dateTime BETWEEN :start AND :end"
+    )
+    fun sumCreditsFlow(start: Long, end: Long): Flow<Double>
+
+    @Query(
         "SELECT categoryId AS categoryId, SUM(amount) AS total FROM transactions " +
             "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL " +
             "AND dateTime BETWEEN :start AND :end " +

@@ -82,6 +82,7 @@ class InsightsViewModel @Inject constructor(
                         com.fynnix.app.core.utils.AccountType.CREDIT_CARD -> "Credit Card"
                         com.fynnix.app.core.utils.AccountType.WALLET -> "Wallet"
                         com.fynnix.app.core.utils.AccountType.UPI -> "UPI"
+                        com.fynnix.app.core.utils.AccountType.BENEFIT_CARD -> "Benefit Card"
                     },
                     rawType = it.type,
                     lastFourDigits = it.lastFourDigits.takeIf { d -> d.isNotBlank() },

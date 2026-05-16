@@ -1,7 +1,12 @@
 package com.fynnix.app.core.utils
 
 enum class AccountType {
-    SAVINGS, CREDIT_CARD, WALLET,UPI
+    SAVINGS, CREDIT_CARD, WALLET, UPI,
+    /** Corporate benefit/prepaid cards — meal, fuel, gift, and multi-purpose employee
+     *  benefit cards (Zaggle, Sodexo/Pluxee, Zeta, etc.). Kept distinct from WALLET and
+     *  CREDIT_CARD since these are employer-funded, usually non-transferable, and
+     *  functionally a separate spending "pot" from the user's own money. */
+    BENEFIT_CARD,
 }
 
 enum class TransactionSource {

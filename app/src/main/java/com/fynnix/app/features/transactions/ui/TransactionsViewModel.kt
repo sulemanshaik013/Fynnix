@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fynnix.app.core.analytics.TimeRanges
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
 import com.fynnix.app.core.utils.TransactionSource
@@ -37,6 +38,13 @@ enum class SortOrder(val label: String) {
     AMOUNT_LOW("Lowest amount"),
 }
 
+enum class PeriodFilter(val label: String) {
+    ALL_TIME("All time"),
+    THIS_MONTH("This month"),
+    LAST_MONTH("Last month"),
+    THIS_WEEK("This week"),
+}
+
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     application: Application,
@@ -51,6 +59,9 @@ class TransactionsViewModel @Inject constructor(
     private val _filter = MutableStateFlow(TransactionFilter.ALL)
     val filter: StateFlow<TransactionFilter> = _filter
 
+    private val _periodFilter = MutableStateFlow(PeriodFilter.ALL_TIME)
+    val periodFilter: StateFlow<PeriodFilter> = _periodFilter
+
     private val _sortOrder = MutableStateFlow(SortOrder.NEWEST_FIRST)
     val sortOrder: StateFlow<SortOrder> = _sortOrder
 
@@ -59,11 +70,18 @@ class TransactionsViewModel @Inject constructor(
             transactionRepository.getAllTransactions(),
             transactionRepository.categoryMetaFlow,
             _query,
-            _filter,
+            combine(_filter, _periodFilter) { f, period -> f to period },
             _sortOrder,
-        ) { list, meta, q, f, sort ->
+        ) { list, meta, q, (f, period), sort ->
+            val periodRange = when (period) {
+                PeriodFilter.ALL_TIME -> null
+                PeriodFilter.THIS_MONTH -> TimeRanges.thisMonth()
+                PeriodFilter.LAST_MONTH -> TimeRanges.lastMonth()
+                PeriodFilter.THIS_WEEK -> TimeRanges.thisWeek()
+            }
             list
                 .asSequence()
+                .filter { tx -> periodRange == null || tx.dateTime in periodRange.start..periodRange.end }
                 .filter { tx ->
                     when (f) {
                         TransactionFilter.ALL -> true
@@ -126,6 +144,7 @@ class TransactionsViewModel @Inject constructor(
 
     fun setQuery(q: String) { _query.value = q }
     fun setFilter(f: TransactionFilter) { _filter.value = f }
+    fun setPeriodFilter(p: PeriodFilter) { _periodFilter.value = p }
     fun setSortOrder(s: SortOrder) { _sortOrder.value = s }
 
     fun manualSync() {

@@ -13,6 +13,7 @@ import javax.inject.Singleton
  * Account identity = (bankName, lastFourDigits, type).
  *
  * Type detection rules (body-keyword based):
+ *  - known benefit-card provider name / "meal card"      → BENEFIT_CARD
  *  - "credit card" / "credit limit" / "available limit"  → CREDIT_CARD
  *  - "wallet"                                            → WALLET
  *  - VPA-only with no last4                              → UPI (last4 = "")
@@ -59,6 +60,7 @@ class AccountResolver @Inject constructor(
     }
 
     private fun detectType(body: String, handlerName: String): AccountType = when {
+        BENEFIT_CARD_KEYWORDS.any { body.contains(it) } -> AccountType.BENEFIT_CARD
         body.contains("credit card") ||
             body.contains("credit limit") ||
             body.contains("available limit") ||
@@ -76,6 +78,7 @@ class AccountResolver @Inject constructor(
         return when (type) {
             AccountType.WALLET -> fromSender ?: "Wallet"
             AccountType.UPI -> fromSender ?: "UPI"
+            AccountType.BENEFIT_CARD -> fromSender ?: "Benefit Card"
             else -> fromSender ?: "Other"
         }
     }
@@ -92,6 +95,7 @@ class AccountResolver @Inject constructor(
             AccountType.WALLET -> "Wallet"
             AccountType.UPI -> "UPI"
             AccountType.SAVINGS -> "Savings"
+            AccountType.BENEFIT_CARD -> "Benefit Card"
         }
         return if (last4.isNotBlank()) "$bank $typeLabel ••$last4" else "$bank $typeLabel"
     }
@@ -127,6 +131,18 @@ class AccountResolver @Inject constructor(
             "PHONEPE" to "PhonePe",
             "AMAZPB" to "Amazon Pay",
             "MOBIKW" to "Mobikwik",
+            // Corporate benefit / prepaid meal cards
+            "ZAGGLE" to "Zaggle",
+            "SODEXO" to "Sodexo", "PLUXEE" to "Pluxee", // Sodexo India rebranded to Pluxee in 2024
+            "ZETA" to "Zeta",
+        )
+
+        /** Body phrases indicating a corporate benefit/prepaid card rather than a personal
+         *  bank account — these are employer-funded, usually non-transferable pots (meal,
+         *  fuel, gift, wellness) and should be tracked separately from the user's own money. */
+        val BENEFIT_CARD_KEYWORDS = listOf(
+            "zaggle", "sodexo", "pluxee", "zeta card", "zeta super card", "zeta optima",
+            "meal card", "meal voucher", "benefit card", "gift card balance",
         )
     }
 }

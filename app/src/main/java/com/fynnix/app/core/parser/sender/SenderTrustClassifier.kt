@@ -92,6 +92,8 @@ class SenderTrustClassifier @Inject constructor() {
     private val verifiedFintech = setOf(
         "CRED", "JUPITER", "FAMPAY", "SLICEIT", "SLICE", "GPAY", "NAVI",
         "FISDOM", "GROWW", "ZERODHA",
+        // Corporate benefit / prepaid meal cards
+        "ZAGGLE", "SODEXO", "PLUXEE", "ZETA",
     )
 
     private val spamHints = setOf("LOAN", "OFFER", "REWARD", "WIN", "FREE", "BONUS")

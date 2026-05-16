@@ -49,6 +49,7 @@ fun TransactionsScreen() {
     val transactions by viewModel.transactions.collectAsState()
     val searchQuery by viewModel.query.collectAsState()
     val activeFilter by viewModel.filter.collectAsState()
+    val activePeriodFilter by viewModel.periodFilter.collectAsState()
     val activeSortOrder by viewModel.sortOrder.collectAsState()
     val categories by viewModel.categoryItems.collectAsState()
 
@@ -168,6 +169,24 @@ fun TransactionsScreen() {
                     selected = filter == activeFilter,
                     onClick = { viewModel.setFilter(filter) },
                     label = { Text(filter.label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Primary,
+                        selectedLabelColor = Color.Black,
+                    ),
+                )
+            }
+        }
+
+        // Period filter chips
+        LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(PeriodFilter.values().toList()) { period ->
+                FilterChip(
+                    selected = period == activePeriodFilter,
+                    onClick = { viewModel.setPeriodFilter(period) },
+                    label = { Text(period.label) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = Primary,
                         selectedLabelColor = Color.Black,

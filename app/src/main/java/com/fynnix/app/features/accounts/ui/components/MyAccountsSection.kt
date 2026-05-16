@@ -127,11 +127,22 @@ fun AccountCard(account: AccountUiModel) {
                 }
             }
 
-            Text(
-                text = "₹${String.format("%,.0f", account.balance)}",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = Color.White
-            )
+            // A stored 0.0 is ambiguous between "genuinely empty" and "no SMS has ever
+            // reported a balance" (common for UPI/wallet debits) — say so explicitly
+            // rather than show a bare "₹0" that reads as broken.
+            if (account.balance == 0.0) {
+                Text(
+                    text = "Not reported",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = "₹${String.format("%,.0f", account.balance)}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White
+                )
+            }
         }
     }
 }

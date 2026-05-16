@@ -41,6 +41,7 @@ data class HomeUiState(
     val insights:     List<InsightUiModel>        = emptyList(),
     val streak:       Int                         = 0,
     val totalSpent:   Double                      = 0.0,
+    val totalReceived: Double                     = 0.0,
     val isLoading:    Boolean                     = true,
 )
 
@@ -178,6 +179,10 @@ class HomeViewModel @Inject constructor(
         transactionDao.sumDebitsFlow(range.start, range.end)
     }
 
+    private val totalReceivedFlow = monthTick.flatMapLatest { range ->
+        transactionDao.sumCreditsFlow(range.start, range.end)
+    }
+
     // ---- single combined state ------------------------------------------
 
     val uiState = combine(
@@ -185,16 +190,17 @@ class HomeViewModel @Inject constructor(
         spendCardsFlow,
         budgetsFlow,
         insightsFlow,
-        combine(streakFlow, totalSpentFlow) { streak, total -> streak to total },
-    ) { transactions, spendCards, budgets, insights, (streak, total) ->
+        combine(streakFlow, totalSpentFlow, totalReceivedFlow) { streak, spent, received -> Triple(streak, spent, received) },
+    ) { transactions, spendCards, budgets, insights, (streak, spent, received) ->
         HomeUiState(
-            transactions = transactions,
-            spendCards   = spendCards,
-            budgets      = budgets,
-            insights     = insights,
-            streak       = streak,
-            totalSpent   = total,
-            isLoading    = false,
+            transactions  = transactions,
+            spendCards    = spendCards,
+            budgets       = budgets,
+            insights      = insights,
+            streak        = streak,
+            totalSpent    = spent,
+            totalReceived = received,
+            isLoading     = false,
         )
     }.stateIn(
         scope         = viewModelScope,

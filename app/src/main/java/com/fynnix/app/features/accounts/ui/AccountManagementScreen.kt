@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Warning
@@ -21,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -63,10 +65,11 @@ class AccountManagementViewModel @Inject constructor(
                 id             = acc.id,
                 bankName       = acc.bankName,
                 type           = when (acc.type) {
-                    AccountType.SAVINGS     -> "Savings"
-                    AccountType.CREDIT_CARD -> "Credit Card"
-                    AccountType.WALLET      -> "Wallet"
-                    AccountType.UPI         -> "UPI"
+                    AccountType.SAVINGS      -> "Savings"
+                    AccountType.CREDIT_CARD  -> "Credit Card"
+                    AccountType.WALLET       -> "Wallet"
+                    AccountType.UPI          -> "UPI"
+                    AccountType.BENEFIT_CARD -> "Benefit Card"
                 },
                 rawType        = acc.type,
                 lastFourDigits = acc.lastFourDigits.takeIf { it.isNotBlank() },
@@ -122,6 +125,19 @@ class AccountManagementViewModel @Inject constructor(
         const val TAG = "AccountManagementVM"
     }
 }
+
+private val ACCOUNT_TYPE_ORDER = listOf(
+    AccountType.SAVINGS, AccountType.CREDIT_CARD, AccountType.UPI,
+    AccountType.WALLET, AccountType.BENEFIT_CARD,
+)
+
+private val ACCOUNT_TYPE_SECTION_LABEL = mapOf(
+    AccountType.SAVINGS to "BANK ACCOUNTS",
+    AccountType.CREDIT_CARD to "CREDIT CARDS",
+    AccountType.UPI to "UPI",
+    AccountType.WALLET to "WALLETS",
+    AccountType.BENEFIT_CARD to "BENEFIT CARDS",
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -207,7 +223,25 @@ fun AccountManagementScreen(onBack: () -> Unit) {
                 }
             }
 
-            items(accounts, key = { it.id }) { acc -> AccountRow(acc) }
+            // Grouped by type instead of one flat list, so it's clear at a glance which
+            // entries are the user's own money (Savings/UPI) versus employer-funded pots
+            // (Benefit Card) or credit (Credit Card) — these aren't fungible with each
+            // other and lumping them together made the section read as one undifferentiated
+            // pile of "accounts."
+            val grouped = accounts.groupBy { it.rawType }
+                .toSortedMap(compareBy { ACCOUNT_TYPE_ORDER.indexOf(it) })
+            grouped.forEach { (type, accountsOfType) ->
+                item(key = "header-$type") {
+                    Text(
+                        text = ACCOUNT_TYPE_SECTION_LABEL[type] ?: type.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                items(accountsOfType, key = { it.id }) { acc -> AccountRow(acc) }
+            }
         }
     }
 
@@ -240,10 +274,11 @@ fun AccountManagementScreen(onBack: () -> Unit) {
 @Composable
 private fun AccountRow(acc: AccountUiModel) {
     val icon: ImageVector = when (acc.rawType) {
-        AccountType.SAVINGS     -> Icons.Default.AccountBalance
-        AccountType.CREDIT_CARD -> Icons.Default.CreditCard
-        AccountType.WALLET      -> Icons.Default.AccountBalanceWallet
-        AccountType.UPI         -> Icons.Default.QrCode
+        AccountType.SAVINGS      -> Icons.Default.AccountBalance
+        AccountType.CREDIT_CARD  -> Icons.Default.CreditCard
+        AccountType.WALLET       -> Icons.Default.AccountBalanceWallet
+        AccountType.UPI          -> Icons.Default.QrCode
+        AccountType.BENEFIT_CARD -> Icons.Default.CardGiftcard
     }
 
     Card(
@@ -276,11 +311,24 @@ private fun AccountRow(acc: AccountUiModel) {
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                     )
-                    Text(
-                        "₹${"%,.0f".format(acc.balance)}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                    )
+                    if (acc.balance == 0.0) {
+                        // A stored 0.0 here is ambiguous — it's the same default used both
+                        // for a genuinely empty account and for one where no SMS has ever
+                        // reported a balance figure (common for UPI/wallet debits, which
+                        // frequently omit it). Showing "₹0" in the latter case reads as a
+                        // bug rather than "no data yet", so say so explicitly instead.
+                        Text(
+                            "Not reported",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                        )
+                    } else {
+                        Text(
+                            "₹${"%,.0f".format(acc.balance)}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                    }
                 }
             }
 

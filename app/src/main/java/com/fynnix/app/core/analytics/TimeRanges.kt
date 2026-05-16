@@ -29,6 +29,8 @@ object TimeRanges {
         return withDayBoundary(cal) { Calendar.getInstance() }
     }
 
+    fun lastMonth(): TimeRange = forMonth(Calendar.getInstance().apply { add(Calendar.MONTH, -1) })
+
     /** Full calendar-month range for an arbitrary (possibly past) month, e.g. from a date picker. */
     fun forMonth(cal: Calendar): TimeRange {
         val start = (cal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1) }.startOfDay()
