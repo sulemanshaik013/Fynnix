@@ -37,12 +37,12 @@ enum class TransactionIntent {
     ATM_WITHDRAWAL, AUTOPAY, SUBSCRIPTION, TRANSFER,
     /** Genuinely failed or declined original — must NOT be persisted as a transaction. */
     FAILED_TRANSACTION,
-    OTP, PROMOTIONAL, LOAN_MARKETING, KYC, REMINDER, NON_FINANCIAL;
+    OTP, PROMOTIONAL, LOAN_MARKETING, KYC, REMINDER, PAYMENT_REQUEST, NON_FINANCIAL;
 
     /** True iff this should produce a stored transaction. */
     val isFinancial: Boolean
         get() = when (this) {
-            OTP, PROMOTIONAL, LOAN_MARKETING, KYC, REMINDER, NON_FINANCIAL,
+            OTP, PROMOTIONAL, LOAN_MARKETING, KYC, REMINDER, PAYMENT_REQUEST, NON_FINANCIAL,
             FAILED_TRANSACTION -> false
             else -> true
         }

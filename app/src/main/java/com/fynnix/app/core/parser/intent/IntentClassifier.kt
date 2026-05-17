@@ -13,8 +13,11 @@ import javax.inject.Singleton
  *   2. Pure balance pings → NON_FINANCIAL.
  *   3. Failed/declined → FAILED_TRANSACTION (never persisted).
  *   4. Refund / reversal of credit (positive case) → REFUND.
- *   5. AUTOPAY / ATM detection.
- *   6. Plain debit / credit verbs.
+ *   5. Collect/payment requests → PAYMENT_REQUEST (nothing has moved yet — checked
+ *      before the credit-verb pass since "you've received a payment request" contains
+ *      "received" and would otherwise misclassify as MONEY_CREDIT).
+ *   6. AUTOPAY / ATM detection.
+ *   7. Plain debit / credit verbs.
  */
 @Singleton
 class IntentClassifier @Inject constructor() {
@@ -41,6 +44,8 @@ class IntentClassifier @Inject constructor() {
         if (b.contains("refund") || b.contains("reversed") || b.contains("reversal"))
             return TransactionIntent.REFUND
 
+        if (isPaymentRequest(b)) return TransactionIntent.PAYMENT_REQUEST
+
         if (b.contains("autopay") || b.contains("auto-pay") || b.contains("auto debit") ||
             b.contains("e-mandate") || b.contains("standing instruction")
         ) return TransactionIntent.AUTOPAY
@@ -61,6 +66,13 @@ class IntentClassifier @Inject constructor() {
         "rejected by",
         "reversed due to",
         "authorization reversed", "auth reversed",
+    ).any { b.contains(it) }
+
+    private fun isPaymentRequest(b: String): Boolean = listOf(
+        "has requested", "is requesting",
+        "payment request", "collect request",
+        "requesting payment", "requests rs", "requests inr",
+        "ignore if already paid",
     ).any { b.contains(it) }
 
     private fun hasDebitVerb(b: String): Boolean = listOf(

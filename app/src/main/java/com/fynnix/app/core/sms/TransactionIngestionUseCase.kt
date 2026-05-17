@@ -107,7 +107,31 @@ class TransactionIngestionUseCase @Inject constructor(
                 return@withTransaction IngestionResult(duplicates = 1)
             }
 
-            // Layer 2.5: the same real-world movement is often reported by two
+            // Layer 2.5: a UPI reference number (UTR/RRN) identifies the real-world
+            // movement itself, not the SMS reporting it — the bank's own alert and the
+            // UPI app's courtesy notification for the same transfer carry the identical
+            // reference despite different sender/wording. This is a stronger signal than
+            // amount+time proximity, so check it first when the draft has one. Bounded to
+            // REFERENCE_REUSE_WINDOW_MS because banks legitimately reuse the same UMRN
+            // across separate autopay/mandate billing cycles.
+            // Short/generic captures (e.g. a 6-char alphanumeric code two unrelated
+            // merchants could plausibly share) are not distinctive enough to trust as a
+            // duplicate signal — only match on references long enough to be a real UTR/RRN.
+            if (draft.reference.length >= MIN_TRUSTED_REFERENCE_LENGTH) {
+                val byReference = transactionDao.findByReferenceAmountAndType(
+                    reference = draft.reference,
+                    type = draft.type,
+                    amountMin = draft.amount - AMOUNT_EPSILON,
+                    amountMax = draft.amount + AMOUNT_EPSILON,
+                    start = dateTime - REFERENCE_REUSE_WINDOW_MS,
+                    end = dateTime + REFERENCE_REUSE_WINDOW_MS,
+                )
+                if (byReference != null && !byReference.isUserEdited) {
+                    return@withTransaction IngestionResult(duplicates = 1)
+                }
+            }
+
+            // Layer 2.6: the same real-world movement is often reported by two
             // different senders — a bank's own SMS and, separately, the UPI app's
             // courtesy notification for the same debit/credit (or the two legs of a
             // self-transfer each getting a bank + an app notification). Merchant
@@ -234,5 +258,7 @@ class TransactionIngestionUseCase @Inject constructor(
         const val DAY_MILLIS = 24L * 60 * 60 * 1000
         const val AMOUNT_EPSILON = 0.01
         const val CROSS_SENDER_WINDOW_MS = 3L * 60 * 1000
+        const val REFERENCE_REUSE_WINDOW_MS = 24L * 60 * 60 * 1000
+        const val MIN_TRUSTED_REFERENCE_LENGTH = 8
     }
 }

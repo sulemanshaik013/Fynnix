@@ -61,6 +61,32 @@ interface TransactionDao {
         end: Long,
     ): TransactionEntity?
 
+    /**
+     * UTR/RRN reference numbers are assigned per real-world money movement, not per SMS —
+     * a bank's own debit/credit alert and a UPI app's courtesy notification for the exact
+     * same transfer carry the identical reference even though sender, wording, and merchant
+     * text differ. Matching on it (when present) is a stronger cross-sender duplicate signal
+     * than amount+time proximity, which can both miss dupes settled slightly apart and
+     * false-positive on two genuinely distinct same-amount transactions.
+     *
+     * Still bounded to a window: banks legitimately reuse the same UMRN/reference across
+     * separate autopay/mandate billing cycles, so an unbounded match would collapse two
+     * different months' mandate debits into one.
+     */
+    @Query(
+        "SELECT * FROM transactions WHERE smsReference = :reference AND type = :type " +
+            "AND amount BETWEEN :amountMin AND :amountMax " +
+            "AND dateTime BETWEEN :start AND :end AND deletedAt IS NULL LIMIT 1"
+    )
+    suspend fun findByReferenceAmountAndType(
+        reference: String,
+        type: TransactionType,
+        amountMin: Double,
+        amountMax: Double,
+        start: Long,
+        end: Long,
+    ): TransactionEntity?
+
     // ---- Streaming queries (all filter out soft-deleted rows) ----
 
     @Query("SELECT * FROM transactions WHERE deletedAt IS NULL ORDER BY dateTime DESC")
