@@ -24,14 +24,22 @@ import kotlin.math.abs
  * one payment of ₹5 000 actually left the user's wallet (and the original
  * card swipes were already counted at swipe time).
  *
+ * Also pairs a DEBIT on one SAVINGS/UPI account with a CREDIT on another (e.g. moving
+ * money between two of the user's own bank accounts). This case gets no structural
+ * shortcut, unlike the credit-card case above — a savings-like credit is otherwise
+ * indistinguishable from an ordinary payment received from someone else, so it is only
+ * paired when a leg's body explicitly reads as a self-transfer.
+ *
  * Pairing rules (all must hold):
  *   - One leg is DEBIT on a non-credit-card account; the other is CREDIT on
- *     a CREDIT_CARD or WALLET account.
+ *     a CREDIT_CARD, WALLET, SAVINGS, or UPI account.
  *   - Amount equality within ₹0.50.
  *   - dateTime within ±5 days.
- *   - Either body has a "card payment / bill / wallet load" keyword OR the
- *     two-account structure alone is enough when within ±2 days.
  *   - Neither leg has been user-edited.
+ *   - Evidence required, by credit-side account type:
+ *       CREDIT_CARD: two-account structure alone is enough within ±2 days.
+ *       WALLET:      a "card payment / bill / wallet load" keyword.
+ *       SAVINGS/UPI: an explicit self-transfer keyword.
  *
  * Idempotent — re-running over the same data is a no-op because both legs
  * are already `isExcluded`.
@@ -56,10 +64,18 @@ class TransferPairDetector @Inject constructor(
             .flatMap { byAccountType[it].orEmpty() }
             .filter { it.type == TransactionType.DEBIT }
 
+        // Savings/UPI credits are included here too so a transfer between two of the
+        // user's own bank accounts (e.g. HDFC savings -> SBI savings) can be paired, not
+        // just card-bill and wallet-load transfers. Unlike those two cases, a savings-like
+        // credit is structurally identical to an ordinary P2P payment received from someone
+        // else, so isMatch() requires explicit self-transfer wording for this pairing —
+        // amount/date proximity alone is not treated as sufficient evidence.
         val opposingCredits = (
             byAccountType[AccountType.CREDIT_CARD].orEmpty() +
-                byAccountType[AccountType.WALLET].orEmpty()
-            ).filter { it.type == TransactionType.CREDIT }
+                byAccountType[AccountType.WALLET].orEmpty() +
+                byAccountType[AccountType.SAVINGS].orEmpty() +
+                byAccountType[AccountType.UPI].orEmpty()
+            ).distinctBy { it.id }.filter { it.type == TransactionType.CREDIT }
 
         if (savingsLikeDebits.isEmpty() || opposingCredits.isEmpty()) return 0
 
@@ -105,7 +121,19 @@ class TransferPairDetector @Inject constructor(
         val creditIsCreditCard = accountTypes[credit.accountId] == AccountType.CREDIT_CARD
         if (tight && creditIsCreditCard) return true
 
+        val creditIsSavingsLike = accountTypes[credit.accountId].let {
+            it == AccountType.SAVINGS || it == AccountType.UPI
+        }
+        if (creditIsSavingsLike) {
+            return bodyMatchesSelfTransfer(debit) || bodyMatchesSelfTransfer(credit)
+        }
+
         return bodyMatchesBillPayment(debit) || bodyMatchesPaymentReceived(credit)
+    }
+
+    private fun bodyMatchesSelfTransfer(tx: TransactionEntity): Boolean {
+        val b = tx.rawMessage.lowercase()
+        return SELF_TRANSFER_KEYWORDS.any { b.contains(it) }
     }
 
     private fun bodyMatchesBillPayment(tx: TransactionEntity): Boolean {
@@ -138,6 +166,11 @@ class TransferPairDetector @Inject constructor(
             "payment received", "payment of", "received towards",
             "credit received", "thank you for", "load successful",
             "wallet credited", "added to your wallet",
+        )
+
+        val SELF_TRANSFER_KEYWORDS = listOf(
+            "self transfer", "transfer to self", "to your own account", "own account",
+            "own a/c", "linked account", "between your accounts", "self imps",
         )
     }
 }

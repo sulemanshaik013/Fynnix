@@ -84,25 +84,31 @@ class AccountManagementViewModel @Inject constructor(
 
     /** Groups of accounts that share the same (last4, type) — likely duplicates. */
     val duplicateGroups: List<List<AccountUiModel>>
-        get() {
-            val current = accounts.value
-            return current
-                .filter { it.lastFourDigits?.isNotBlank() == true }
-                .groupBy { "${it.lastFourDigits}_${it.rawType}" }
-                .values
-                .filter { it.size > 1 }
-                .toList()
-        }
+        get() = computeDuplicateGroups(accounts.value)
+
+    /**
+     * Same (last4, type) is not enough to call two accounts duplicates: last-4 digits alone
+     * collide often across different banks (only 10,000 possible values), and the real
+     * account identity used everywhere else is (bankName, last4, type). This only flags a
+     * group when at most one *specific* bank name appears in it — the actual duplicate case
+     * this exists for is a single real account whose bank name first resolved to a generic
+     * placeholder (e.g. "Other"/"UPI"/"Wallet") and later resolved to the real bank name from
+     * a clearer SMS. A group containing two or more distinct specific bank names is left
+     * alone, since merging it would silently reassign one bank's transactions onto another.
+     */
+    private fun computeDuplicateGroups(current: List<AccountUiModel>): List<List<AccountUiModel>> =
+        current
+            .filter { it.lastFourDigits?.isNotBlank() == true }
+            .groupBy { "${it.lastFourDigits}_${it.rawType}" }
+            .values
+            .filter { it.size > 1 }
+            .filter { group -> group.map { it.bankName }.filterNot(::isGenericBankName).toSet().size <= 1 }
+            .toList()
 
     /** Auto-merge: for each duplicate group keep the account with the "best" bank name. */
     fun mergeAllDuplicates() {
         viewModelScope.launchCatching(TAG) {
-            val current = accounts.value
-            val groups = current
-                .filter { it.lastFourDigits?.isNotBlank() == true }
-                .groupBy { "${it.lastFourDigits}_${it.rawType}" }
-                .values
-                .filter { it.size > 1 }
+            val groups = computeDuplicateGroups(accounts.value)
 
             database.withTransaction {
                 groups.forEach { group ->
@@ -116,10 +122,9 @@ class AccountManagementViewModel @Inject constructor(
         }
     }
 
-    private fun rankBankName(name: String): Int = when {
-        name == "Other" || name == "UPI" || name == "Wallet" -> 0
-        else -> 1
-    }
+    private fun isGenericBankName(name: String) = name == "Other" || name == "UPI" || name == "Wallet"
+
+    private fun rankBankName(name: String): Int = if (isGenericBankName(name)) 0 else 1
 
     private companion object {
         const val TAG = "AccountManagementVM"

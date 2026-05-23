@@ -20,6 +20,18 @@ data class MerchantGroupRow(
     val avgAmount: Double,
 )
 
+/**
+ * A transaction marked reimbursable is money the user expects back in full, so it must not
+ * count as real spend regardless of any split share. A split transaction's spend is only the
+ * user's own share (splitAmount), falling back to the full amount if a share was never set.
+ * Every spend aggregate below must use this instead of the raw `amount` column, or a
+ * split/reimbursable expense silently overstates spend, category totals, and budget usage.
+ */
+private const val EFFECTIVE_SPEND_AMOUNT =
+    "CASE WHEN isReimbursement = 1 THEN 0 " +
+        "WHEN isSplit = 1 THEN COALESCE(splitAmount, amount) " +
+        "ELSE amount END"
+
 @Dao
 interface TransactionDao {
 
@@ -102,7 +114,7 @@ interface TransactionDao {
     fun getByDateRange(startTime: Long, endTime: Long): Flow<List<TransactionEntity>>
 
     @Query(
-        "SELECT IFNULL(SUM(amount),0) FROM transactions " +
+        "SELECT IFNULL(SUM($EFFECTIVE_SPEND_AMOUNT),0) FROM transactions " +
             "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL " +
             "AND dateTime BETWEEN :start AND :end"
     )
@@ -116,7 +128,7 @@ interface TransactionDao {
     fun sumCreditsFlow(start: Long, end: Long): Flow<Double>
 
     @Query(
-        "SELECT categoryId AS categoryId, SUM(amount) AS total FROM transactions " +
+        "SELECT categoryId AS categoryId, SUM($EFFECTIVE_SPEND_AMOUNT) AS total FROM transactions " +
             "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL " +
             "AND dateTime BETWEEN :start AND :end " +
             "GROUP BY categoryId ORDER BY total DESC"
@@ -124,7 +136,7 @@ interface TransactionDao {
     fun categorySpendFlow(start: Long, end: Long): Flow<List<CategorySpendRow>>
 
     @Query(
-        "SELECT accountId, SUM(amount) AS total FROM transactions " +
+        "SELECT accountId, SUM($EFFECTIVE_SPEND_AMOUNT) AS total FROM transactions " +
             "WHERE type = 'DEBIT' AND isExcluded = 0 AND deletedAt IS NULL " +
             "AND accountId IS NOT NULL AND dateTime BETWEEN :start AND :end " +
             "GROUP BY accountId"

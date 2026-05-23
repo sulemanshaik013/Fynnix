@@ -13,10 +13,14 @@ class AccountExtractor @Inject constructor() : Extractor<String> {
     // (e.g. "a/c 1234567890") captured the FIRST 4 digits instead of the last 4,
     // producing a different last4 for the same real account than a properly masked
     // message ("a/c xx7890") would, and fragmenting it into two account records.
+    // Word boundaries around the keyword are required: without them "ac" also matches
+    // inside ordinary words like "transaction" or "backup", letting the regex consume
+    // whatever digits follow in the sentence (often the transaction amount) as if they
+    // were the account last-4.
     private val patterns = listOf(
-        Regex("(?:a/c|ac|account|card)[^\\d]{0,15}\\d*(\\d{4})(?!\\d)"),
-        Regex("ending\\s+(?:with\\s+)?\\d*(\\d{4})(?!\\d)"),
-        Regex("xx+\\d*(\\d{4})(?!\\d)"),
+        Regex("\\b(?:a/c|ac|account|card)\\b[^\\d]{0,15}\\d*(\\d{4})(?!\\d)"),
+        Regex("\\bending\\s+(?:with\\s+)?\\d*(\\d{4})(?!\\d)"),
+        Regex("\\bxx+\\d*(\\d{4})(?!\\d)"),
     )
 
     /** Returns the last-4 of an account/card if found. */
