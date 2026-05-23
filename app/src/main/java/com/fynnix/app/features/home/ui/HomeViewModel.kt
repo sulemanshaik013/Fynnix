@@ -12,12 +12,15 @@ import com.fynnix.app.core.analytics.TimeRange
 import com.fynnix.app.core.analytics.TimeRanges
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
+import com.fynnix.app.core.utils.AppConstants
 import com.fynnix.app.core.utils.TransactionType
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.ui.BudgetUiModel
 import com.fynnix.app.features.categories.data.CategoryDao
 import com.fynnix.app.features.insights.ui.InsightUiModel
 import com.fynnix.app.features.insights.ui.SpendCardData
+import com.fynnix.app.features.reminders.data.BillReminderDao
+import com.fynnix.app.features.subscriptions.data.SubscriptionMandateDao
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionRepository
 import com.fynnix.app.features.transactions.ui.TransactionUiModel
@@ -33,6 +36,20 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+private data class StreakAndTotals(
+    val streak: Int,
+    val spent: Double,
+    val received: Double,
+    val upcoming: List<UpcomingItem>,
+)
+
+/** A subscription's next debit or a bill's due date, whichever source it came from. */
+data class UpcomingItem(
+    val label: String,
+    val amount: Double?,
+    val dueDate: Long,
+)
+
 /** Single immutable snapshot of everything HomeScreen needs to render. */
 data class HomeUiState(
     val transactions: List<TransactionUiModel>  = emptyList(),
@@ -42,6 +59,7 @@ data class HomeUiState(
     val streak:       Int                         = 0,
     val totalSpent:   Double                      = 0.0,
     val totalReceived: Double                     = 0.0,
+    val upcoming:     List<UpcomingItem>          = emptyList(),
     val isLoading:    Boolean                     = true,
 )
 
@@ -56,6 +74,8 @@ class HomeViewModel @Inject constructor(
     private val userPreferences: UserPreferences,
     private val insightGenerator: InsightGenerator,
     private val subscriptionDetector: SubscriptionDetector,
+    private val subscriptionMandateDao: SubscriptionMandateDao,
+    private val billReminderDao: BillReminderDao,
 ) : AndroidViewModel(application) {
 
     val syncProgress = com.fynnix.app.core.sms.SmsProcessingManager.processingProgress
@@ -140,8 +160,11 @@ class HomeViewModel @Inject constructor(
     // boundaries — combining it inside the ticking flatMapLatest below would redo this
     // (multiple sequential DB queries per merchant) every 60 seconds regardless of
     // whether any transaction data changed.
-    private val subscriptionsFlow = transactionDao.recurringCandidatesFlow()
-        .map { rows -> subscriptionDetector.buildFromCandidates(rows.map { it.merchant }) }
+    private val subscriptionsFlow = combine(
+        transactionDao.recurringCandidatesFlow(),
+        subscriptionMandateDao.findActiveFlow(),
+    ) { rows, mandates -> rows.map { it.merchant } to mandates }
+        .map { (merchants, mandates) -> subscriptionDetector.build(merchants, mandates) }
 
     private val insightsFlow = monthTick.flatMapLatest { range ->
         combine(
@@ -183,6 +206,22 @@ class HomeViewModel @Inject constructor(
         transactionDao.sumCreditsFlow(range.start, range.end)
     }
 
+    // Confirmed subscriptions and bill reminders share one "what's coming up" list on
+    // Home — a stale entry more than a day past its due date (unpaid-but-not-yet-reparsed,
+    // or a mandate cycle that already rolled over) is dropped rather than shown as overdue
+    // forever, since neither source tells us whether it was actually paid.
+    private val upcomingFlow = combine(
+        subscriptionMandateDao.findActiveFlow(),
+        billReminderDao.findUpcomingFlow(),
+    ) { mandates, reminders ->
+        val cutoff = System.currentTimeMillis() - AppConstants.DAY_MILLIS
+        (mandates.mapNotNull { m -> m.nextDueDate?.let { UpcomingItem(m.merchant, m.amount, it) } } +
+            reminders.mapNotNull { r -> r.dueDate?.let { UpcomingItem(r.label, r.amount, it) } })
+            .filter { it.dueDate >= cutoff }
+            .sortedBy { it.dueDate }
+            .take(5)
+    }
+
     // ---- single combined state ------------------------------------------
 
     val uiState = combine(
@@ -190,16 +229,19 @@ class HomeViewModel @Inject constructor(
         spendCardsFlow,
         budgetsFlow,
         insightsFlow,
-        combine(streakFlow, totalSpentFlow, totalReceivedFlow) { streak, spent, received -> Triple(streak, spent, received) },
-    ) { transactions, spendCards, budgets, insights, (streak, spent, received) ->
+        combine(streakFlow, totalSpentFlow, totalReceivedFlow, upcomingFlow) { streak, spent, received, upcoming ->
+            StreakAndTotals(streak, spent, received, upcoming)
+        },
+    ) { transactions, spendCards, budgets, insights, totals ->
         HomeUiState(
             transactions  = transactions,
             spendCards    = spendCards,
             budgets       = budgets,
             insights      = insights,
-            streak        = streak,
-            totalSpent    = spent,
-            totalReceived = received,
+            streak        = totals.streak,
+            totalSpent    = totals.spent,
+            totalReceived = totals.received,
+            upcoming      = totals.upcoming,
             isLoading     = false,
         )
     }.stateIn(

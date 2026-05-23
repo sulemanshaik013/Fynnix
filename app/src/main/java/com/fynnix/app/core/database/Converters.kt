@@ -2,6 +2,7 @@ package com.fynnix.app.core.database
 
 import androidx.room.TypeConverter
 import com.fynnix.app.core.utils.AccountType
+import com.fynnix.app.core.utils.MandateStatus
 import com.fynnix.app.core.utils.PaymentMode
 import com.fynnix.app.core.utils.PeriodType
 import com.fynnix.app.core.utils.RuleCondition
@@ -51,4 +52,10 @@ class Converters {
 
     @TypeConverter
     fun toPeriodType(value: String) = PeriodType.valueOf(value)
+
+    @TypeConverter
+    fun fromMandateStatus(value: MandateStatus) = value.name
+
+    @TypeConverter
+    fun toMandateStatus(value: String) = MandateStatus.valueOf(value)
 }

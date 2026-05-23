@@ -117,6 +117,9 @@ class TransactionsViewModel @Inject constructor(
                         source        = tx.source.name,
                         rawMessage    = tx.rawMessage,
                         messageSource = tx.messageSource,
+                        isSplit         = tx.isSplit,
+                        splitAmount     = tx.splitAmount,
+                        isReimbursement = tx.isReimbursement,
                     )
                 }
                 .let { seq ->
@@ -214,6 +217,12 @@ class TransactionsViewModel @Inject constructor(
 
     fun markReviewed(id: String) {
         viewModelScope.launchCatching(TAG) { transactionRepository.markReviewed(id) }
+    }
+
+    fun setSplitReimbursement(id: String, isSplit: Boolean, splitAmount: Double?, isReimbursement: Boolean) {
+        viewModelScope.launchCatching(TAG) {
+            transactionDao.setSplitReimbursement(id, isSplit, splitAmount.takeIf { isSplit }, isReimbursement)
+        }
     }
 
     private companion object {

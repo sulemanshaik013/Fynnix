@@ -36,3 +36,7 @@ enum class PeriodType {
 enum class AccountSource {
     AUTO, MANUAL
 }
+
+enum class MandateStatus {
+    ACTIVE, CANCELLED
+}

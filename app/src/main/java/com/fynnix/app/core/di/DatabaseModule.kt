@@ -11,6 +11,8 @@ import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.categories.data.AutoCategoriseRuleDao
 import com.fynnix.app.features.categories.data.CategoryDao
 import com.fynnix.app.features.categories.data.MerchantCategoryOverrideDao
+import com.fynnix.app.features.reminders.data.BillReminderDao
+import com.fynnix.app.features.subscriptions.data.SubscriptionMandateDao
 import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import com.fynnix.app.features.transactions.data.TransactionDao
 import dagger.Module
@@ -27,7 +29,6 @@ import javax.inject.Singleton
 object DatabaseModule {
 
     private const val TAG = "DatabaseModule"
-    private const val DB_NAME = "fynnix.db"
 
     @Provides
     @Singleton
@@ -76,7 +77,7 @@ object DatabaseModule {
     }
 
     private fun buildDatabase(context: Context, factory: SupportFactory): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
+        Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.DB_NAME)
             .openHelperFactory(factory)
             .addMigrations(*ALL_MIGRATIONS)
             .build()
@@ -88,4 +89,6 @@ object DatabaseModule {
     @Provides fun provideAutoCategoriseRuleDao(db: AppDatabase): AutoCategoriseRuleDao = db.autoCategoriseRuleDao()
     @Provides fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
     @Provides fun provideFailedTransactionDao(db: AppDatabase): FailedTransactionDao = db.failedTransactionDao()
+    @Provides fun provideSubscriptionMandateDao(db: AppDatabase): SubscriptionMandateDao = db.subscriptionMandateDao()
+    @Provides fun provideBillReminderDao(db: AppDatabase): BillReminderDao = db.billReminderDao()
 }

@@ -20,6 +20,9 @@ data class TransactionUiModel(
     val rawMessage: String = "",
     val messageSource: String = "",
     val isP2P: Boolean = false,
+    val isSplit: Boolean = false,
+    val splitAmount: Double? = null,
+    val isReimbursement: Boolean = false,
 )
 
 data class CategoryPickerItem(

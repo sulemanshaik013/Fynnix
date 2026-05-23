@@ -188,6 +188,8 @@ fun AccountManagementScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item(key = "net-worth") { NetWorthCard(accounts) }
+
             // Duplicate-accounts warning
             if (duplicateGroups.isNotEmpty()) {
                 item {
@@ -268,6 +270,50 @@ fun AccountManagementScreen(onBack: () -> Unit) {
             },
             containerColor = MaterialTheme.colorScheme.surface,
         )
+    }
+}
+
+/**
+ * Sum of balances the user actually holds: Savings/UPI/Wallet/Benefit Card accounts store a
+ * real balance figure, but a credit card's stored "balance" is its *available limit* (see
+ * [BalanceExtractor]'s "avl lmt"/"available limit" patterns) — not money owed or held, so
+ * including it here would silently inflate net worth by however much credit is left unused.
+ */
+@Composable
+private fun NetWorthCard(accounts: List<AccountUiModel>) {
+    val netWorth = accounts
+        .filter { it.rawType != AccountType.CREDIT_CARD }
+        .sumOf { it.balance }
+    val reportedCount = accounts.count { it.rawType != AccountType.CREDIT_CARD && it.balance != 0.0 }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "NET WORTH",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 1.sp,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "₹${"%,.0f".format(netWorth)}",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color.White,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                if (reportedCount > 0)
+                    "Across $reportedCount account${if (reportedCount > 1) "s" else ""} with a reported balance · excludes credit limits"
+                else
+                    "No balance-reporting accounts yet",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+            )
+        }
     }
 }
 

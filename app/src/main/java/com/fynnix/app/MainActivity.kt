@@ -29,6 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fynnix.app.core.data.UserPreferences
+import com.fynnix.app.core.notifications.BillReminderWorker
 import com.fynnix.app.core.sms.SmsProcessingManager
 import com.fynnix.app.core.sms.SyncWorker
 import com.fynnix.app.core.ui.theme.FynnixTheme
@@ -72,6 +73,10 @@ class MainActivity : FragmentActivity() {
     @javax.inject.Inject
     lateinit var userPrefs: UserPreferences
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* Bill notifications simply stay silent if this is denied — nothing else to do. */ }
+
     private val smsPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -79,6 +84,10 @@ class MainActivity : FragmentActivity() {
             SmsProcessingManager.startProcessing()
             SyncWorker.scheduleInitialSync(this, userPrefs.getSyncDays())
             SyncWorker.schedulePeriodicSync(this)
+            BillReminderWorker.Scheduler.schedulePeriodic(this)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         } else {
             // Permission denied — onboarding can still proceed (manual mode).
             android.util.Log.w("MainActivity", "READ_SMS denied")

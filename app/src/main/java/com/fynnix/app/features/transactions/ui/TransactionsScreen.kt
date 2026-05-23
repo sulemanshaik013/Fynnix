@@ -366,6 +366,12 @@ fun TransactionsScreen() {
                 pendingDeleteId = selectedTransaction!!.id
                 selectedTransaction = null
             },
+            onSplitReimbursementChange = { isSplit, splitAmount, isReimbursement ->
+                viewModel.setSplitReimbursement(selectedTransaction!!.id, isSplit, splitAmount, isReimbursement)
+                selectedTransaction = selectedTransaction!!.copy(
+                    isSplit = isSplit, splitAmount = splitAmount, isReimbursement = isReimbursement,
+                )
+            },
         )
     }
 

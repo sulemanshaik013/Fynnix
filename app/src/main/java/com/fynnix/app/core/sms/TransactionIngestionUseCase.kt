@@ -4,14 +4,21 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.fynnix.app.core.analytics.AccountResolver
 import com.fynnix.app.core.database.AppDatabase
+import com.fynnix.app.core.parser.MandateDraft
 import com.fynnix.app.core.parser.ParseResult
 import com.fynnix.app.core.parser.Pipeline
+import com.fynnix.app.core.parser.ReminderDraft
 import com.fynnix.app.core.parser.RejectionReason
 import com.fynnix.app.core.parser.SmsInput
 import com.fynnix.app.core.parser.TransactionDraft
 import com.fynnix.app.core.utils.Hashing
+import com.fynnix.app.core.utils.MandateStatus
 import com.fynnix.app.core.utils.TransactionSource
 import com.fynnix.app.features.categories.domain.CategoryClassifier
+import com.fynnix.app.features.reminders.data.BillReminderDao
+import com.fynnix.app.features.reminders.data.BillReminderEntity
+import com.fynnix.app.features.subscriptions.data.SubscriptionMandateDao
+import com.fynnix.app.features.subscriptions.data.SubscriptionMandateEntity
 import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import com.fynnix.app.features.transactions.data.FailedTransactionEntity
 import com.fynnix.app.features.transactions.data.TransactionDao
@@ -49,6 +56,8 @@ class TransactionIngestionUseCase @Inject constructor(
     private val failedDao: FailedTransactionDao,
     private val categoryClassifier: CategoryClassifier,
     private val accountResolver: AccountResolver,
+    private val subscriptionMandateDao: SubscriptionMandateDao,
+    private val billReminderDao: BillReminderDao,
 ) {
     /**
      * A single malformed or unexpected SMS must never abort an entire sync batch — that
@@ -83,9 +92,81 @@ class TransactionIngestionUseCase @Inject constructor(
 
         return when (val result = pipeline.process(SmsInput(raw.id, raw.sender, raw.body, raw.timestamp))) {
             is ParseResult.Success -> handleSuccess(raw, result.draft, smsHash)
+            is ParseResult.MandateEvent -> handleMandateEvent(raw, result.mandate)
+            is ParseResult.ReminderEvent -> handleReminderEvent(raw, result.reminder)
             is ParseResult.Rejected -> handleRejection(raw, result)
         }
     }
+
+    /**
+     * Registers, updates, or cancels a [SubscriptionMandateEntity] instead of creating a
+     * transaction — no money has moved yet. Wrapped in the same transaction pattern as
+     * [handleSuccess] since the read-then-write (find existing row, then insert or update)
+     * is not otherwise atomic against a concurrent sync processing the same merchant.
+     */
+    private suspend fun handleMandateEvent(raw: RawSms, mandate: MandateDraft): IngestionResult =
+        database.withTransaction {
+            if (mandate.status == MandateStatus.CANCELLED) {
+                subscriptionMandateDao.cancelByMerchant(mandate.merchant, raw.timestamp)
+                return@withTransaction IngestionResult(skipped = 1)
+            }
+            val existing = subscriptionMandateDao.findByMerchant(mandate.merchant)
+            if (existing != null) {
+                subscriptionMandateDao.updateActive(
+                    id = existing.id,
+                    amount = mandate.amount ?: existing.amount,
+                    nextDueDate = mandate.nextDueDate ?: existing.nextDueDate,
+                    umn = mandate.umn.ifBlank { existing.umn },
+                    updatedAt = raw.timestamp,
+                )
+            } else {
+                subscriptionMandateDao.insert(
+                    SubscriptionMandateEntity(
+                        merchant = mandate.merchant,
+                        amount = mandate.amount,
+                        umn = mandate.umn,
+                        nextDueDate = mandate.nextDueDate,
+                        status = MandateStatus.ACTIVE,
+                        createdAt = raw.timestamp,
+                        updatedAt = raw.timestamp,
+                    )
+                )
+            }
+            IngestionResult(skipped = 1)
+        }
+
+    /**
+     * Registers or updates a [BillReminderEntity] — never a transaction, since a reminder
+     * describes an upcoming due date, not money that has moved. Resets
+     * [BillReminderEntity.notifiedForDate] only when the due date actually changed, so a
+     * re-parse of the same unpaid bill's SMS (e.g. a re-sync) doesn't trigger a repeat
+     * notification for a due date already alerted on.
+     */
+    private suspend fun handleReminderEvent(raw: RawSms, reminder: ReminderDraft): IngestionResult =
+        database.withTransaction {
+            val existing = billReminderDao.findByLabel(reminder.label)
+            if (existing != null) {
+                val notifiedForDate = if (existing.dueDate == reminder.dueDate) existing.notifiedForDate else null
+                billReminderDao.updateReminder(
+                    id = existing.id,
+                    amount = reminder.amount ?: existing.amount,
+                    dueDate = reminder.dueDate,
+                    notifiedForDate = notifiedForDate,
+                    updatedAt = raw.timestamp,
+                )
+            } else {
+                billReminderDao.insert(
+                    BillReminderEntity(
+                        label = reminder.label,
+                        amount = reminder.amount,
+                        dueDate = reminder.dueDate,
+                        createdAt = raw.timestamp,
+                        updatedAt = raw.timestamp,
+                    )
+                )
+            }
+            IngestionResult(skipped = 1)
+        }
 
     private suspend fun handleSuccess(
         raw: RawSms,

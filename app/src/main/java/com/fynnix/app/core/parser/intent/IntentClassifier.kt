@@ -16,8 +16,11 @@ import javax.inject.Singleton
  *   5. Collect/payment requests → PAYMENT_REQUEST (nothing has moved yet — checked
  *      before the credit-verb pass since "you've received a payment request" contains
  *      "received" and would otherwise misclassify as MONEY_CREDIT).
- *   6. AUTOPAY / ATM detection.
- *   7. Plain debit / credit verbs.
+ *   6. Mandate registration / cancellation → MANDATE_REGISTERED / MANDATE_CANCELLED
+ *      (checked before AUTOPAY, since a registration notice also contains "e-mandate" or
+ *      "standing instruction" but describes a *future* debit, not one that already happened).
+ *   7. AUTOPAY / ATM detection.
+ *   8. Plain debit / credit verbs.
  */
 @Singleton
 class IntentClassifier @Inject constructor() {
@@ -45,6 +48,9 @@ class IntentClassifier @Inject constructor() {
             return TransactionIntent.REFUND
 
         if (isPaymentRequest(b)) return TransactionIntent.PAYMENT_REQUEST
+
+        if (isMandateCancellation(b)) return TransactionIntent.MANDATE_CANCELLED
+        if (isMandateRegistration(b)) return TransactionIntent.MANDATE_REGISTERED
 
         if (b.contains("autopay") || b.contains("auto-pay") || b.contains("auto debit") ||
             b.contains("e-mandate") || b.contains("standing instruction")
@@ -74,6 +80,22 @@ class IntentClassifier @Inject constructor() {
         "requesting payment", "requests rs", "requests inr",
         "ignore if already paid",
     ).any { b.contains(it) }
+
+    /**
+     * A mandate/autopay *setup* notice — no debit verb, since the money hasn't moved yet.
+     * Distinct from AUTOPAY (an actual debit that happens to be recurring), which this
+     * check must run before to avoid misrouting the registration itself as a transaction.
+     */
+    private fun isMandateRegistration(b: String): Boolean =
+        (b.contains("mandate") || b.contains("standing instruction") || b.contains(" si ")) &&
+            listOf("regist", "created", "is active", "activated", "has been set up", "setup successful")
+                .any { b.contains(it) } &&
+            !hasDebitVerb(b)
+
+    private fun isMandateCancellation(b: String): Boolean =
+        (b.contains("mandate") || b.contains("autopay") || b.contains("auto-pay") ||
+            b.contains("standing instruction")) &&
+            listOf("cancel", "deactivat", "stopped", "revoked").any { b.contains(it) }
 
     private fun hasDebitVerb(b: String): Boolean = listOf(
         "debited", "withdrawn", "spent", "paid",

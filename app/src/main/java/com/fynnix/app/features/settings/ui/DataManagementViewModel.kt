@@ -4,9 +4,12 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fynnix.app.core.backup.BackupRestoreUseCase
 import com.fynnix.app.core.backup.CsvIo
+import com.fynnix.app.core.backup.RestoreResult
 import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
+import com.fynnix.app.core.utils.AppConstants
 import com.fynnix.app.features.transactions.data.FailedTransactionDao
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,6 +29,7 @@ class DataManagementViewModel @Inject constructor(
     private val prefs: UserPreferences,
     private val csv: CsvIo,
     private val failedTransactionDao: FailedTransactionDao,
+    private val backupRestore: BackupRestoreUseCase,
 ) : ViewModel() {
 
     val failedSmsCount = failedTransactionDao.countFlow()
@@ -47,6 +51,20 @@ class DataManagementViewModel @Inject constructor(
 
     private val _status = MutableStateFlow<String?>(null)
     val status: StateFlow<String?> = _status
+
+    private val _backupBusy = MutableStateFlow(false)
+    val backupBusy: StateFlow<Boolean> = _backupBusy
+
+    private val _restoreWrongPassword = MutableStateFlow(false)
+    val restoreWrongPassword: StateFlow<Boolean> = _restoreWrongPassword
+
+    /** Set once a restore has actually replaced the on-disk database — the UI must force
+     *  a process restart at this point, since Room's connection to it is now closed for
+     *  good and nothing in this process can safely touch the database again. */
+    private val _restoreCompleted = MutableStateFlow(false)
+    val restoreCompleted: StateFlow<Boolean> = _restoreCompleted
+
+    val backupPasswordMinLength = AppConstants.BACKUP_PASSWORD_MIN_LENGTH
 
     fun selectPeriod(days: Int) {
         prefs.setSyncDays(days)
@@ -77,6 +95,40 @@ class DataManagementViewModel @Inject constructor(
                 .onFailure { _status.value = "Import failed: ${it.message}" }
         }
     }
+
+    fun backup(destination: Uri, password: String) {
+        viewModelScope.launch {
+            _backupBusy.value = true
+            backupRestore.backup(destination, password)
+                .onSuccess { _status.value = "Backup saved" }
+                .onFailure { _status.value = "Backup failed: ${it.message}" }
+            _backupBusy.value = false
+        }
+    }
+
+    /**
+     * Validates the password against [source] before doing anything destructive — a wrong
+     * password must never get anywhere near [restore], which starts tearing down the live
+     * database as soon as it's called.
+     */
+    fun restore(source: Uri, password: String) {
+        viewModelScope.launch {
+            _backupBusy.value = true
+            _restoreWrongPassword.value = false
+            if (!backupRestore.validatePassword(source, password)) {
+                _restoreWrongPassword.value = true
+                _backupBusy.value = false
+                return@launch
+            }
+            when (val result = backupRestore.restore(source, password)) {
+                is RestoreResult.RestartRequired -> _restoreCompleted.value = true
+                is RestoreResult.Failed -> _status.value = "Restore failed: ${result.message}"
+            }
+            _backupBusy.value = false
+        }
+    }
+
+    fun clearRestoreWrongPassword() { _restoreWrongPassword.value = false }
 
     fun clearStatus() { _status.value = null }
 

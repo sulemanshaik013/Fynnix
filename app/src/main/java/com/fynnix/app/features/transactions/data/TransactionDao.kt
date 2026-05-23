@@ -157,6 +157,12 @@ interface TransactionDao {
     @Query("UPDATE transactions SET isExcluded = :excluded, isUserEdited = 1 WHERE id = :id")
     suspend fun markExcluded(id: String, excluded: Boolean)
 
+    @Query(
+        "UPDATE transactions SET isSplit = :isSplit, splitAmount = :splitAmount, " +
+            "isReimbursement = :isReimbursement, isUserEdited = 1 WHERE id = :id"
+    )
+    suspend fun setSplitReimbursement(id: String, isSplit: Boolean, splitAmount: Double?, isReimbursement: Boolean)
+
     @Query("UPDATE transactions SET accountId = :newId WHERE accountId = :oldId")
     suspend fun reassignAccount(oldId: Long, newId: Long)
 

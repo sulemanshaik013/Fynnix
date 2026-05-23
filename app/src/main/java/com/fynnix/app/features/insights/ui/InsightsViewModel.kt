@@ -15,6 +15,7 @@ import com.fynnix.app.features.accounts.data.AccountDao
 import com.fynnix.app.features.accounts.ui.AccountUiModel
 import com.fynnix.app.features.categories.data.CategoryDao
 import com.fynnix.app.features.categories.ui.CategorySpend
+import com.fynnix.app.features.subscriptions.data.SubscriptionMandateDao
 import com.fynnix.app.features.transactions.data.TransactionDao
 import com.fynnix.app.features.transactions.data.TransactionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -60,6 +61,7 @@ class InsightsViewModel @Inject constructor(
     private val repository: TransactionRepository,
     private val insightGenerator: InsightGenerator,
     private val subscriptionDetector: SubscriptionDetector,
+    private val subscriptionMandateDao: SubscriptionMandateDao,
     private val userPrefs: UserPreferences,
 ) : ViewModel() {
 
@@ -123,8 +125,11 @@ class InsightsViewModel @Inject constructor(
     // recurring-candidate query's actual result changing, not on which reporting period
     // the user has selected — combining it inside the range-driven flatMapLatest below
     // would redo this (multiple sequential DB queries per merchant) on every filter tap.
-    private val subscriptionsFlow = transactionDao.recurringCandidatesFlow()
-        .map { rows -> subscriptionDetector.buildFromCandidates(rows.map { it.merchant }) }
+    private val subscriptionsFlow = combine(
+        transactionDao.recurringCandidatesFlow(),
+        subscriptionMandateDao.findActiveFlow(),
+    ) { rows, mandates -> rows.map { it.merchant } to mandates }
+        .map { (merchants, mandates) -> subscriptionDetector.build(merchants, mandates) }
 
     val insights = _selectedRange
         .flatMapLatest { range ->

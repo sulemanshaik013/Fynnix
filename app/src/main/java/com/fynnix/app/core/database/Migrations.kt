@@ -17,6 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *  3 → 4  : add merchant_category_overrides.updatedAt
  *  4 → 5  : dedupe transactions by dedupKey, make dedupKey unique, add FK constraints
  *           on transactions.categoryId/accountId, add index on transactions.accountId
+ *  5 → 6  : add subscription_mandates (confirmed recurring debits parsed from
+ *           e-mandate/standing-instruction SMS, keyed one row per merchant)
+ *  6 → 7  : add bill_reminders (due-date bill/statement reminders parsed from SMS),
+ *           add subscription_mandates.notifiedForDate (bill-notification dedup)
  */
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -160,5 +164,52 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS subscription_mandates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                merchant TEXT NOT NULL,
+                amount REAL,
+                umn TEXT NOT NULL,
+                nextDueDate INTEGER,
+                status TEXT NOT NULL,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_subscription_mandates_merchant " +
+                "ON subscription_mandates(merchant)"
+        )
+    }
+}
+
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE subscription_mandates ADD COLUMN notifiedForDate INTEGER")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS bill_reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                label TEXT NOT NULL,
+                amount REAL,
+                dueDate INTEGER,
+                notifiedForDate INTEGER,
+                createdAt INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_bill_reminders_label ON bill_reminders(label)"
+        )
+    }
+}
+
 /** Ordered list passed to Room.addMigrations(). */
-val ALL_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+val ALL_MIGRATIONS = arrayOf(
+    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+)

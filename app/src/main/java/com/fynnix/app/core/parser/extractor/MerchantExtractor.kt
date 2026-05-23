@@ -126,6 +126,16 @@ class MerchantExtractor @Inject constructor() : Extractor<String> {
 
         // Order matters — more specific patterns first.
         val PATTERNS: List<Regex> = listOf(
+            // "e-mandate towards NETFLIX INDIA for", "autopay for SPOTIFY", "SI in favour of X" —
+            // mandate/autopay wording names the merchant right after the mandate keyword, which
+            // is a more reliable anchor than the generic "to X on" pattern below and must be
+            // tried first so it isn't shadowed by a looser match.
+            Regex(
+                "(?:e-mandate|mandate|autopay|auto-debit|auto debit|standing instruction|\\bsi\\b)" +
+                    "\\s+(?:for|towards|in favou?r of)\\s+([A-Za-z][A-Za-z0-9 .&\\-]{2,40}?)" +
+                    "(?:\\s+(?:for|has|is|umn|ref|on)|[.,;]|\\s*\$)",
+                RegexOption.IGNORE_CASE,
+            ),
             // UPI VPA: "to xyz@hdfcbank", "VPA xyz@bank"
             Regex("(?:to|at|via|vpa)\\s+([A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+)", RegexOption.IGNORE_CASE),
             // "UPI/P2A/MERCHANT NAME/..." (Axis / Kotak structured ref)

@@ -38,6 +38,10 @@ object AppConstants {
     /** Minimum occurrences to classify a merchant as a subscription. */
     const val SUBSCRIPTION_MIN_OCCURRENCES = 3
 
+    // ---- Bill / subscription reminders -------------------------------
+    /** How many days ahead of a confirmed due date to fire a local notification. */
+    const val BILL_NOTIFY_WINDOW_DAYS = 2L
+
     // ---- Insights ---------------------------------------------------
     /** Hour at which "late-night spending" window starts (23 = 11 PM). */
     const val LATE_NIGHT_START_HOUR = 23
@@ -63,6 +67,11 @@ object AppConstants {
 
     /** Maximum accepted PIN length. */
     const val PIN_MAX_LENGTH = 6
+
+    /** Minimum length for a backup-file password — deliberately longer than the app-lock
+     *  PIN since this password is the only thing protecting a backup file that could end
+     *  up anywhere (cloud storage, shared drive, email attachment). */
+    const val BACKUP_PASSWORD_MIN_LENGTH = 8
 
     // ---- Date extraction --------------------------------------------
     /**

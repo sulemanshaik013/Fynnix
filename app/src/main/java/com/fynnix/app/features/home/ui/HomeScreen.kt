@@ -42,6 +42,7 @@ import com.fynnix.app.features.home.ui.components.ReceivedSentRow
 import com.fynnix.app.features.home.ui.components.RecentTransactionsSection
 import com.fynnix.app.features.home.ui.components.SpendCardPager
 import com.fynnix.app.features.home.ui.components.StreakBanner
+import com.fynnix.app.features.home.ui.components.UpcomingSection
 import com.fynnix.app.features.insights.ui.InsightUiModel
 import com.fynnix.app.features.insights.ui.components.InsightDetailSheet
 import com.fynnix.app.features.insights.ui.components.InsightsSection
@@ -142,6 +143,11 @@ fun HomeScreen(
             SpendCardPager(cards = uiState.spendCards)
             Spacer(modifier = Modifier.height(12.dp))
             ReceivedSentRow(received = uiState.totalReceived, sent = uiState.totalSpent)
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        if (uiState.upcoming.isNotEmpty()) {
+            UpcomingSection(items = uiState.upcoming)
             Spacer(modifier = Modifier.height(24.dp))
         }
 

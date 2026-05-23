@@ -4,6 +4,8 @@ import com.fynnix.app.core.parser.contract.ConfidenceScorer
 import com.fynnix.app.core.parser.contract.SmsFilter
 import com.fynnix.app.core.parser.contract.TransactionValidator
 import com.fynnix.app.core.parser.country.CountryAdapter
+import com.fynnix.app.core.parser.extractor.MandateExtractor
+import com.fynnix.app.core.parser.extractor.ReminderExtractor
 import com.fynnix.app.core.parser.institution.ParserRegistry
 import com.fynnix.app.core.parser.intent.IntentClassifier
 import com.fynnix.app.core.parser.normalize.TextNormalizer
@@ -40,6 +42,8 @@ class Pipeline @Inject constructor(
     private val registry: ParserRegistry,
     private val scorer: ConfidenceScorer,
     private val validator: TransactionValidator,
+    private val mandateExtractor: MandateExtractor,
+    private val reminderExtractor: ReminderExtractor,
 ) {
     private val orderedFilters: List<SmsFilter> = filters.sortedBy { it.priority }
 
@@ -62,6 +66,16 @@ class Pipeline @Inject constructor(
         val intent = intentClassifier.classify(sms.cleanedBody)
         if (intent == TransactionIntent.FAILED_TRANSACTION) {
             return ParseResult.Rejected(RejectionReason.FAILED_TRANSACTION, detail = intent.name)
+        }
+        if (intent == TransactionIntent.MANDATE_REGISTERED || intent == TransactionIntent.MANDATE_CANCELLED) {
+            val mandate = mandateExtractor.extract(input.body, sms.cleanedBody, intent)
+                ?: return ParseResult.Rejected(RejectionReason.EXTRACTION_FAILED, detail = intent.name)
+            return ParseResult.MandateEvent(mandate)
+        }
+        if (intent == TransactionIntent.REMINDER) {
+            val reminder = reminderExtractor.extract(input.body, sms.cleanedBody, canonicalSender.uppercase())
+                ?: return ParseResult.Rejected(RejectionReason.NOT_FINANCIAL, detail = intent.name)
+            return ParseResult.ReminderEvent(reminder)
         }
         if (!intent.isFinancial) return ParseResult.Rejected(RejectionReason.NOT_FINANCIAL, detail = intent.name)
 
