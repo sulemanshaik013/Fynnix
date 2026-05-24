@@ -19,7 +19,6 @@ data class TransactionUiModel(
     val source: String = "Manual",
     val rawMessage: String = "",
     val messageSource: String = "",
-    val isP2P: Boolean = false,
     val isSplit: Boolean = false,
     val splitAmount: Double? = null,
     val isReimbursement: Boolean = false,

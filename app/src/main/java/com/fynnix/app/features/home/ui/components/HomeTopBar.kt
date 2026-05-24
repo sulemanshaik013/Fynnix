@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +31,7 @@ fun HomeTopBar(
             Text(
                 text = "Welcome back,",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = name,
@@ -40,7 +39,7 @@ fun HomeTopBar(
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp
                 ),
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -49,21 +48,21 @@ fun HomeTopBar(
                 Icon(
                     imageVector = Icons.Outlined.Refresh,
                     contentDescription = "Refresh",
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             IconButton(onClick = onNotificationsClick) {
                 Icon(
                     imageVector = Icons.Outlined.Notifications,
                     contentDescription = "Notifications",
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             IconButton(onClick = onAiChatClick) {
                 Icon(
                     imageVector = Icons.Outlined.ChatBubbleOutline,
                     contentDescription = "AI Assistant",
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }

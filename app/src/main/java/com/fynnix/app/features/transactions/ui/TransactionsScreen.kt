@@ -628,9 +628,7 @@ fun TransactionFormSheet(
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-private fun formatAmount(amount: Double): String =
-    if (amount >= 1_00_000) String.format(Locale.US, "%,.0f", amount)
-    else String.format(Locale.US, "%,.0f", amount)
+private fun formatAmount(amount: Double): String = String.format(Locale.US, "%,.0f", amount)
 
 private fun formatDisplayDate(ts: Long): String {
     if (ts <= 0) return "Today"

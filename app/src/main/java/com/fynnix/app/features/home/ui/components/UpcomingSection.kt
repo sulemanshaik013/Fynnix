@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fynnix.app.core.ui.theme.CardCornerRadius
 import com.fynnix.app.core.ui.theme.Primary
 import com.fynnix.app.features.home.ui.UpcomingItem
 import java.util.Calendar
@@ -37,7 +38,7 @@ fun UpcomingSection(items: List<UpcomingItem>) {
             modifier = Modifier.padding(bottom = 8.dp),
         )
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(CardCornerRadius),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -45,7 +46,9 @@ fun UpcomingSection(items: List<UpcomingItem>) {
                 items.forEachIndexed { index, item ->
                     UpcomingRow(item)
                     if (index != items.lastIndex) {
-                        androidx.compose.material3.HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                        androidx.compose.material3.HorizontalDivider(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                        )
                     }
                 }
             }
@@ -75,8 +78,9 @@ private fun UpcomingRow(item: UpcomingItem) {
             Text(
                 item.label,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -84,7 +88,7 @@ private fun UpcomingRow(item: UpcomingItem) {
                 Text(
                     "₹${"%,.0f".format(item.amount)}",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Text(

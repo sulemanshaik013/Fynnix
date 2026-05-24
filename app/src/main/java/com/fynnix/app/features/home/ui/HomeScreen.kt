@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fynnix.app.core.ui.theme.CardCornerRadius
 import com.fynnix.app.features.budgets.ui.components.BudgetSection
 import com.fynnix.app.features.home.ui.components.HomeTopBar
 import com.fynnix.app.features.home.ui.components.ReceivedSentRow
@@ -46,6 +47,8 @@ import com.fynnix.app.features.home.ui.components.UpcomingSection
 import com.fynnix.app.features.insights.ui.InsightUiModel
 import com.fynnix.app.features.insights.ui.components.InsightDetailSheet
 import com.fynnix.app.features.insights.ui.components.InsightsSection
+import com.fynnix.app.features.transactions.ui.TransactionUiModel
+import com.fynnix.app.features.transactions.ui.components.TransactionDetailSheet
 
 @Composable
 fun HomeScreen(
@@ -59,6 +62,7 @@ fun HomeScreen(
 
     var selectedInsight by remember { mutableStateOf<InsightUiModel?>(null) }
     var showInsightSheet by remember { mutableStateOf(false) }
+    var selectedTransaction by remember { mutableStateOf<TransactionUiModel?>(null) }
 
     Column(
         modifier = Modifier
@@ -82,11 +86,11 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                shape  = RoundedCornerShape(14.dp),
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                shape  = RoundedCornerShape(CardCornerRadius),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444).copy(alpha = 0.12f)),
             ) {
-                androidx.compose.foundation.layout.Row(
+                Row(
                     modifier          = Modifier.padding(14.dp).fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -96,12 +100,12 @@ fun HomeScreen(
                         Text(
                             "SMS access is off",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             "Auto-tracking is paused. Tap to enable.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -130,7 +134,7 @@ fun HomeScreen(
             Text(
                 text     = syncProgress.status,
                 style    = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                 color    = MaterialTheme.colorScheme.primary,
             )
         }
@@ -159,7 +163,7 @@ fun HomeScreen(
         RecentTransactionsSection(
             transactions  = uiState.transactions,
             onViewAllClick = onViewAllTransactionsClick,
-            onTransactionClick = { }
+            onTransactionClick = { selectedTransaction = it }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -182,6 +186,30 @@ fun HomeScreen(
         InsightDetailSheet(
             insight   = selectedInsight!!,
             onDismiss = { showInsightSheet = false }
+        )
+    }
+
+    selectedTransaction?.let { transaction ->
+        LaunchedEffect(transaction.id) {
+            if (!transaction.isReviewed) viewModel.markReviewed(transaction.id)
+        }
+        TransactionDetailSheet(
+            transaction = transaction,
+            onDismiss = { selectedTransaction = null },
+            onEdit = {
+                selectedTransaction = null
+                onViewAllTransactionsClick()
+            },
+            onDelete = {
+                viewModel.deleteTransaction(transaction.id)
+                selectedTransaction = null
+            },
+            onSplitReimbursementChange = { isSplit, splitAmount, isReimbursement ->
+                viewModel.setSplitReimbursement(transaction.id, isSplit, splitAmount, isReimbursement)
+                selectedTransaction = transaction.copy(
+                    isSplit = isSplit, splitAmount = splitAmount, isReimbursement = isReimbursement,
+                )
+            },
         )
     }
 }

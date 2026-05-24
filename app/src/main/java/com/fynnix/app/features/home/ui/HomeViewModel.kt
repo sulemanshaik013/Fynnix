@@ -14,6 +14,7 @@ import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.sms.SyncWorker
 import com.fynnix.app.core.utils.AppConstants
 import com.fynnix.app.core.utils.TransactionType
+import com.fynnix.app.core.utils.launchCatching
 import com.fynnix.app.features.budgets.data.BudgetDao
 import com.fynnix.app.features.budgets.ui.BudgetUiModel
 import com.fynnix.app.features.categories.data.CategoryDao
@@ -85,6 +86,20 @@ class HomeViewModel @Inject constructor(
         SyncWorker.scheduleManualSync(getApplication(), userPreferences.getSyncDays())
     }
 
+    fun deleteTransaction(id: String) {
+        viewModelScope.launchCatching(TAG) { repository.softDelete(id) }
+    }
+
+    fun markReviewed(id: String) {
+        viewModelScope.launchCatching(TAG) { repository.markReviewed(id) }
+    }
+
+    fun setSplitReimbursement(id: String, isSplit: Boolean, splitAmount: Double?, isReimbursement: Boolean) {
+        viewModelScope.launchCatching(TAG) {
+            transactionDao.setSplitReimbursement(id, isSplit, splitAmount.takeIf { isSplit }, isReimbursement)
+        }
+    }
+
     private val todayTick  = TimeRanges.ticking(TimeRanges::today)
     private val weekTick   = TimeRanges.ticking(TimeRanges::thisWeek)
     private val monthTick  = TimeRanges.ticking(TimeRanges::thisMonth)
@@ -113,6 +128,9 @@ class HomeViewModel @Inject constructor(
                     source        = tx.source.name,
                     rawMessage    = tx.rawMessage,
                     messageSource = tx.messageSource,
+                    isSplit         = tx.isSplit,
+                    splitAmount     = tx.splitAmount,
+                    isReimbursement = tx.isReimbursement,
                 )
             }
         }
@@ -190,8 +208,12 @@ class HomeViewModel @Inject constructor(
      */
     private val streakFlow = repository.getTransactions().map { list ->
         if (list.isEmpty()) return@map 0
+        // Excluded transactions are internal transfers between the user's own accounts
+        // (see TransferPairDetector) — they never left the wallet, so a day containing only
+        // an excluded debit must still count as a no-spend day, matching what "spent today"
+        // already shows.
         val spendingDays = list
-            .filter { it.type == TransactionType.DEBIT }
+            .filter { it.type == TransactionType.DEBIT && !it.isExcluded }
             .map { startOfDay(it.dateTime) }
             .toSet()
         val earliestDay = list.minOf { startOfDay(it.dateTime) }
@@ -279,5 +301,9 @@ class HomeViewModel @Inject constructor(
             cursor = startOfDay(cursor - 86400000L)
         }
         return streak
+    }
+
+    private companion object {
+        const val TAG = "HomeViewModel"
     }
 }

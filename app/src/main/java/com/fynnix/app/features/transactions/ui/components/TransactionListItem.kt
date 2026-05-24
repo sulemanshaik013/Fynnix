@@ -73,9 +73,9 @@ fun TransactionListItem(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     ),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                
+
                 if (transaction.isExcluded) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Surface(
@@ -90,26 +90,12 @@ fun TransactionListItem(
                             color = Color(0xFF60A5FA)
                         )
                     }
-                } else if (transaction.isP2P) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = Color.Gray.copy(alpha = 0.2f)
-                    ) {
-                        Text(
-                            text = "P2P",
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 8.sp,
-                            color = Color.LightGray
-                        )
-                    }
                 }
             }
             Text(
                 text = transaction.source,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

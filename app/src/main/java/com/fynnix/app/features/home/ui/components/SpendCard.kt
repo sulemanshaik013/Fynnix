@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fynnix.app.core.ui.components.FynnixProgressBar
+import com.fynnix.app.core.ui.theme.CardCornerRadius
 import com.fynnix.app.core.ui.theme.Primary
 import com.fynnix.app.core.ui.utils.ColorUtils
 import com.fynnix.app.features.insights.ui.SpendCardData
@@ -49,7 +50,8 @@ fun SpendCardPager(
             horizontalArrangement = Arrangement.Center
         ) {
             repeat(cards.size) { iteration ->
-                val color = if (pagerState.currentPage == iteration) Primary else Color.Gray.copy(alpha = 0.3f)
+                val color = if (pagerState.currentPage == iteration) Primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 4.dp)
@@ -74,7 +76,7 @@ fun SpendCard(data: SpendCardData) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(CardCornerRadius),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -85,7 +87,7 @@ fun SpendCard(data: SpendCardData) {
             Text(
                 text = data.label,
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 1.sp
             )
             
@@ -125,7 +127,12 @@ fun SpendCard(data: SpendCardData) {
                     Text(
                         text = "${(percentage * 100).toInt()}% of income spent",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "₹${formatCurrency((data.incomeAmount - data.debitAmount).coerceAtLeast(0.0))} left",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -135,7 +142,7 @@ fun SpendCard(data: SpendCardData) {
             Text(
                 text = "Last synced: ${data.lastSynced}",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }

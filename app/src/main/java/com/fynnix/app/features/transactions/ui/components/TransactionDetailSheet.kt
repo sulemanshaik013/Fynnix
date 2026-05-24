@@ -94,10 +94,14 @@ fun TransactionDetailSheet(
                 letterSpacing = 1.sp
             )
             Text(
-                text = "₹${"%,d".format(transaction.amount.toInt())}",
+                // Round, not truncate — truncating via toInt() showed a different figure
+                // here than the rounded amount the transaction list and every other
+                // screen display for the same transaction (e.g. ₹499.60 read as ₹499
+                // here but ₹500 everywhere else).
+                text = "₹${"%,.0f".format(transaction.amount)}",
                 style = MaterialTheme.typography.displayMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    color = if (transaction.type == TransactionType.DEBIT) Color.White else Color(0xFF22C55E)
+                    color = if (transaction.type == TransactionType.DEBIT) MaterialTheme.colorScheme.onSurface else Color(0xFF22C55E)
                 )
             )
 
@@ -153,7 +157,7 @@ fun TransactionDetailSheet(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
-                    color = Color.White.copy(alpha = 0.04f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -161,7 +165,7 @@ fun TransactionDetailSheet(
                         text = transaction.rawMessage,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = Color(0xFFE0E0E0)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         modifier = Modifier.padding(12.dp)
                     )
@@ -250,18 +254,23 @@ private fun SplitReimbursementSection(
                         onChange(true, v.toDoubleOrNull(), isReimbursement)
                     }
                 },
-                placeholder = { Text("e.g. ${(amount / 2).let { if (it == it.toLong().toDouble()) it.toLong().toString() else "%.2f".format(it) }}", color = Color.Gray) },
+                placeholder = {
+                    Text(
+                        "e.g. ${(amount / 2).let { if (it == it.toLong().toDouble()) it.toLong().toString() else "%.2f".format(it) }}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
                     unfocusedContainerColor = Color.Transparent,
                     focusedContainerColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Gray.copy(alpha = 0.5f),
+                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     focusedIndicatorColor = Primary,
                     cursorColor = Primary,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 ),
             )
         }

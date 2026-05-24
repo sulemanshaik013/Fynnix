@@ -9,11 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fynnix.app.core.ui.components.FynnixProgressBar
+import com.fynnix.app.core.ui.theme.CardCornerRadius
 import com.fynnix.app.core.ui.utils.ColorUtils
 import com.fynnix.app.features.budgets.ui.BudgetUiModel
 import java.util.*
@@ -65,7 +65,7 @@ fun BudgetCard(budget: BudgetUiModel) {
 
     Card(
         modifier = Modifier.width(260.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(CardCornerRadius),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -88,14 +88,14 @@ fun BudgetCard(budget: BudgetUiModel) {
                 
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = Color.DarkGray.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
                 ) {
                     Text(
                         text = "LIMIT",
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         fontSize = 10.sp,
-                        color = Color.LightGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
