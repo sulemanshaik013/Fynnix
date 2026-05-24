@@ -3,7 +3,9 @@ package com.fynnix.app.core.sms
 import android.util.Log
 import androidx.room.withTransaction
 import com.fynnix.app.core.analytics.AccountResolver
+import com.fynnix.app.core.data.UserPreferences
 import com.fynnix.app.core.database.AppDatabase
+import com.fynnix.app.core.llm.LlmTransactionExtractor
 import com.fynnix.app.core.parser.MandateDraft
 import com.fynnix.app.core.parser.ParseResult
 import com.fynnix.app.core.parser.Pipeline
@@ -58,6 +60,8 @@ class TransactionIngestionUseCase @Inject constructor(
     private val accountResolver: AccountResolver,
     private val subscriptionMandateDao: SubscriptionMandateDao,
     private val billReminderDao: BillReminderDao,
+    private val llmTransactionExtractor: LlmTransactionExtractor,
+    private val userPreferences: UserPreferences,
 ) {
     /**
      * A single malformed or unexpected SMS must never abort an entire sync batch — that
@@ -66,8 +70,14 @@ class TransactionIngestionUseCase @Inject constructor(
      * this message is therefore caught here and recorded as a failure so the caller can
      * keep processing the rest of the batch.
      */
-    suspend fun ingest(raw: RawSms): IngestionResult = try {
-        ingestOrThrow(raw)
+    /**
+     * [allowLlmFallback] must stay false for bulk/historical sync — a full backfill can
+     * scan thousands of messages in one run, and running on-device LLM inference on every
+     * one the deterministic pipeline missed would take far too long and drain the battery.
+     * It is safe to enable for a single incoming SMS handled in real time.
+     */
+    suspend fun ingest(raw: RawSms, allowLlmFallback: Boolean = false): IngestionResult = try {
+        ingestOrThrow(raw, allowLlmFallback)
     } catch (e: Exception) {
         Log.e(TAG, "Unexpected failure ingesting SMS id=${raw.id}", e)
         runCatching {
@@ -82,7 +92,7 @@ class TransactionIngestionUseCase @Inject constructor(
         IngestionResult(failed = 1)
     }
 
-    private suspend fun ingestOrThrow(raw: RawSms): IngestionResult {
+    private suspend fun ingestOrThrow(raw: RawSms, allowLlmFallback: Boolean): IngestionResult {
         val smsHash = Hashing.sha256Hex(raw.sender + "|" + raw.body)
 
         // Layer 1: exact SMS dedup
@@ -94,8 +104,36 @@ class TransactionIngestionUseCase @Inject constructor(
             is ParseResult.Success -> handleSuccess(raw, result.draft, smsHash)
             is ParseResult.MandateEvent -> handleMandateEvent(raw, result.mandate)
             is ParseResult.ReminderEvent -> handleReminderEvent(raw, result.reminder)
-            is ParseResult.Rejected -> handleRejection(raw, result)
+            is ParseResult.Rejected -> handleRejectionOrLlmFallback(raw, result, smsHash, allowLlmFallback)
         }
+    }
+
+    /**
+     * A message the deterministic pipeline rejected because it *looked* transactional but
+     * no handler matched or a required field couldn't be extracted (never one already
+     * confidently classified as spam/OTP/promo/non-financial) gets one attempt at LLM
+     * extraction before being recorded as a genuine failure — gated on both the caller's
+     * [allowLlmFallback] and the user's explicit opt-in, since this path can create a
+     * transaction the user never reviewed a rule for.
+     */
+    private suspend fun handleRejectionOrLlmFallback(
+        raw: RawSms,
+        rejected: ParseResult.Rejected,
+        smsHash: String,
+        allowLlmFallback: Boolean,
+    ): IngestionResult {
+        val eligible = allowLlmFallback &&
+            userPreferences.isLlmParserFallbackEnabled() &&
+            rejected.reason in LLM_FALLBACK_ELIGIBLE_REASONS
+
+        if (eligible) {
+            val draft = runCatching { llmTransactionExtractor.extract(raw.body, raw.sender) }
+                .onFailure { Log.w(TAG, "LLM fallback extraction threw for id=${raw.id}", it) }
+                .getOrNull()
+            if (draft != null) return handleSuccess(raw, draft, smsHash, source = TransactionSource.SMS_LLM)
+        }
+
+        return handleRejection(raw, rejected)
     }
 
     /**
@@ -172,6 +210,7 @@ class TransactionIngestionUseCase @Inject constructor(
         raw: RawSms,
         draft: TransactionDraft,
         smsHash: String,
+        source: TransactionSource = TransactionSource.SMS,
     ): IngestionResult {
         val dateTime = resolveDateTime(draft.date, raw.timestamp)
         val dedupKey = buildDedupKey(draft, dateTime)
@@ -231,7 +270,7 @@ class TransactionIngestionUseCase @Inject constructor(
                 return@withTransaction IngestionResult(duplicates = 1)
             }
 
-            val tx = buildTransaction(raw, draft, smsHash, dedupKey, dateTime)
+            val tx = buildTransaction(raw, draft, smsHash, dedupKey, dateTime, source)
             val rowId = transactionDao.insertIgnore(tx)
             if (rowId > 0) IngestionResult(saved = 1) else IngestionResult(duplicates = 1)
         }
@@ -283,6 +322,7 @@ class TransactionIngestionUseCase @Inject constructor(
         smsHash: String,
         dedupKey: String,
         dateTime: Long,
+        source: TransactionSource,
     ): TransactionEntity {
         val accountId = accountResolver.resolve(draft, raw.body.lowercase(), raw.sender)
         return TransactionEntity(
@@ -299,7 +339,7 @@ class TransactionIngestionUseCase @Inject constructor(
             categoryId        = categoryClassifier.classify(draft.merchant, draft.amount),
             accountId         = accountId.takeIf { it > 0 },
             dateTime          = dateTime,
-            source            = TransactionSource.SMS,
+            source            = source,
             smsReference      = draft.reference,
             rawMessage        = raw.body,
             messageSource     = raw.sender,
@@ -341,5 +381,10 @@ class TransactionIngestionUseCase @Inject constructor(
         const val CROSS_SENDER_WINDOW_MS = 3L * 60 * 1000
         const val REFERENCE_REUSE_WINDOW_MS = 24L * 60 * 60 * 1000
         const val MIN_TRUSTED_REFERENCE_LENGTH = 8
+        val LLM_FALLBACK_ELIGIBLE_REASONS = setOf(
+            RejectionReason.NO_HANDLER,
+            RejectionReason.MISSING_AMOUNT,
+            RejectionReason.EXTRACTION_FAILED,
+        )
     }
 }

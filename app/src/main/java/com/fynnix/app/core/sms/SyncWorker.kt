@@ -54,7 +54,7 @@ class SyncWorker @AssistedInject constructor(
         val timestamp = inputData.getLong(KEY_TIMESTAMP, System.currentTimeMillis())
         val id        = "INC_${timestamp}_${sender.hashCode()}"
 
-        ingestion.ingest(RawSms(id = id, sender = sender, body = body, timestamp = timestamp))
+        ingestion.ingest(RawSms(id = id, sender = sender, body = body, timestamp = timestamp), allowLlmFallback = true)
 
         runCatching { transferPairDetector.detectAndMark() }
             .onFailure { Log.w(TAG, "Transfer-pair detection failed (incremental)", it) }

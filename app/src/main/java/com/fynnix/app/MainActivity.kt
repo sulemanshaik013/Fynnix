@@ -34,6 +34,7 @@ import com.fynnix.app.core.sms.SmsProcessingManager
 import com.fynnix.app.core.sms.SyncWorker
 import com.fynnix.app.core.ui.theme.FynnixTheme
 import com.fynnix.app.features.accounts.ui.AccountManagementScreen
+import com.fynnix.app.features.assistant.ui.AssistantScreen
 import com.fynnix.app.features.categories.ui.CategoriesAndBudgetsScreen
 import com.fynnix.app.features.home.ui.HomeScreen
 import com.fynnix.app.features.insights.ui.InsightsScreen
@@ -53,6 +54,7 @@ import com.fynnix.app.features.settings.ui.AppSettingsScreen
 import com.fynnix.app.features.settings.ui.DataManagementScreen
 import com.fynnix.app.features.settings.ui.FailedSmsReviewScreen
 import com.fynnix.app.features.settings.ui.HelpScreen
+import com.fynnix.app.features.settings.ui.LlmSettingsScreen
 import com.fynnix.app.features.settings.ui.PrivacyDashboardScreen
 import com.fynnix.app.features.settings.ui.ProfileDetailsScreen
 import com.fynnix.app.features.settings.ui.ReportIssueScreen
@@ -302,8 +304,12 @@ fun MainScreen(
 //                    onSettingsClick = { navController.navigate(Screen.Settings.route) },
                     onSeeAllBudgetsClick = { navController.navigate(Screen.CategoriesAndBudgets.route) },
                     onViewAllTransactionsClick = { navController.navigate(Screen.Transactions.route) },
-                    onViewAllInsightsClick = { navController.navigate(Screen.Insights.route) }
-                ) 
+                    onViewAllInsightsClick = { navController.navigate(Screen.Insights.route) },
+                    onAiChatClick = { navController.navigate(Screen.Assistant.route) },
+                )
+            }
+            composable(Screen.Assistant.route) {
+                AssistantScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Transactions.route) { TransactionsScreen() }
             composable(Screen.Insights.route) {
@@ -323,7 +329,12 @@ fun MainScreen(
                     onNavigateToPrivacy = { navController.navigate(Screen.PrivacyDashboard.route) },
                     onNavigateToHelp = { navController.navigate(Screen.Help.route) },
                     onNavigateToReport = { navController.navigate(Screen.ReportIssue.route) },
+                    onNavigateToLlmSettings = { navController.navigate(Screen.LlmSettings.route) },
                 )
+            }
+
+            composable(Screen.LlmSettings.route) {
+                LlmSettingsScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Screen.ProfileDetails.route) {

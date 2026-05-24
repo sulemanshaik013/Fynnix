@@ -96,7 +96,14 @@ dependencies {
     // sqlite-android required by net.zetetic SQLCipher 4.x
     implementation(libs.androidx.sqlite.ktx)
 
+    // On-device LLM (chat assistant + parser fallback)
+    implementation(libs.mediapipe.genai)
+
     testImplementation(libs.junit)
+    // Real org.json impl on the test classpath — the Android SDK's org.json classes are
+    // stubs on the local unit-test JVM (every method throws unless mocked/Robolectric is
+    // used), and this shadows those stubs with a working implementation instead.
+    testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

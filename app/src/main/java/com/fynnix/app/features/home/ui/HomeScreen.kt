@@ -55,6 +55,7 @@ fun HomeScreen(
     onSeeAllBudgetsClick: () -> Unit,
     onViewAllTransactionsClick: () -> Unit,
     onViewAllInsightsClick: () -> Unit,
+    onAiChatClick: () -> Unit,
 ) {
     val viewModel: HomeViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -73,7 +74,7 @@ fun HomeScreen(
             name             = viewModel.userName,
             onRefreshClick   = { viewModel.manualSync() },
             onNotificationsClick = { },
-            onAiChatClick    = { }
+            onAiChatClick    = onAiChatClick
         )
 
         // SMS permission revocation banner

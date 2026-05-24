@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Lock
@@ -38,6 +39,7 @@ fun SettingsScreen(
     onNavigateToPrivacy: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onNavigateToReport: () -> Unit,
+    onNavigateToLlmSettings: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val failedCount by viewModel.failedSmsCount.collectAsState()
@@ -97,6 +99,16 @@ fun SettingsScreen(
                     title    = "Security",
                     subtitle = "App lock with biometric, PIN or device lock",
                     onClick  = onNavigateToSecurity,
+                )
+            }
+
+            item { SectionHeader("AI") }
+            item {
+                SettingsRow(
+                    icon     = Icons.Default.AutoAwesome,
+                    title    = "On-device AI",
+                    subtitle = "Chat assistant & missed-transaction detection",
+                    onClick  = onNavigateToLlmSettings,
                 )
             }
 

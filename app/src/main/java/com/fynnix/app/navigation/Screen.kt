@@ -20,6 +20,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Transactions : Screen("transactions", "Transactions", Icons.AutoMirrored.Filled.List)
     object Insights : Screen("insights", "Insights", Icons.Default.BarChart)
     object Subscriptions : Screen("subscriptions", "Subscriptions", Icons.Default.Subscriptions)
+    object Assistant : Screen("assistant", "Ask Fynnix", Icons.Default.Home)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     
     // Settings Sub-screens
@@ -33,6 +34,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object ReportIssue : Screen("report_issue", "Report Issue", Icons.Default.Settings)
     object AccountManagement : Screen("account_management", "Manage Accounts", Icons.Default.Settings)
     object FailedSmsReview : Screen("failed_sms_review", "Failed SMS", Icons.Default.Settings)
+    object LlmSettings : Screen("llm_settings", "On-device AI", Icons.Default.Settings)
 }
 
 val bottomNavItems = listOf(

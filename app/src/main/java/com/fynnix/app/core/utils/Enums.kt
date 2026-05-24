@@ -10,7 +10,11 @@ enum class AccountType {
 }
 
 enum class TransactionSource {
-    SMS, MANUAL, CSV_IMPORT
+    SMS,
+    /** Extracted by the on-device LLM fallback after the deterministic parser pipeline
+     *  found no handler or couldn't extract a required field — see LlmTransactionExtractor. */
+    SMS_LLM,
+    MANUAL, CSV_IMPORT
 }
 
 enum class TransactionType {

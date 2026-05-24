@@ -42,6 +42,8 @@ class UserPreferences @Inject constructor(
         private const val KEY_APP_LOCK            = "app_lock_enabled"
         private const val KEY_LOCK_METHOD         = "lock_method"
         private const val KEY_SCREENSHOT_BLOCK    = "screenshot_blocking_enabled"
+        private const val KEY_LLM_MODEL_READY     = "llm_model_ready"
+        private const val KEY_LLM_PARSER_FALLBACK = "llm_parser_fallback_enabled"
     }
 
     /** True once [openPrefs] has fallen back to plaintext storage this session. */
@@ -114,6 +116,35 @@ class UserPreferences @Inject constructor(
         trySend(isScreenshotBlockingEnabled())
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == KEY_SCREENSHOT_BLOCK) trySend(isScreenshotBlockingEnabled())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    /** Set only after the model file is fully written and byte-count verified — never on
+     *  download start, so an interrupted download can't be mistaken for a ready model. */
+    fun isLlmModelReady(): Boolean = prefs.getBoolean(KEY_LLM_MODEL_READY, false)
+    fun setLlmModelReady(v: Boolean) { prefs.edit().putBoolean(KEY_LLM_MODEL_READY, v).apply() }
+
+    fun llmModelReadyFlow(): Flow<Boolean> = callbackFlow {
+        trySend(isLlmModelReady())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_LLM_MODEL_READY) trySend(isLlmModelReady())
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    /** Off by default even after the model is downloaded — unlike chat (user-initiated per
+     *  message), this lets the LLM autonomously create transactions in the background, so it
+     *  needs its own explicit opt-in rather than inheriting consent from the model download. */
+    fun isLlmParserFallbackEnabled(): Boolean = prefs.getBoolean(KEY_LLM_PARSER_FALLBACK, false)
+    fun setLlmParserFallbackEnabled(v: Boolean) { prefs.edit().putBoolean(KEY_LLM_PARSER_FALLBACK, v).apply() }
+
+    fun llmParserFallbackEnabledFlow(): Flow<Boolean> = callbackFlow {
+        trySend(isLlmParserFallbackEnabled())
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_LLM_PARSER_FALLBACK) trySend(isLlmParserFallbackEnabled())
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
